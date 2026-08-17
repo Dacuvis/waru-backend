@@ -1,16 +1,34 @@
-import { Elysia } from "elysia"
-import { usersController } from "./users.controller"
+import { Elysia } from "elysia";
+import { usersController } from "./users.controller";
+import { authMiddleware } from "../../utils/auth/auth.middleware";
 import {
   createUserValidation,
   updateUserValidation,
   deleteUserValidation,
-} from "./users.validation"
+} from "./users.validation";
+import type { CreateUser, UpdateUser } from "./users.type";
 
-const userControl = new usersController
+const userControl = new usersController();
 
 export const usersRoute = new Elysia()
-
-  .post('/users', (ctx: any) => userControl.create(ctx), createUserValidation)
-  .get('/users', () => userControl.view())
-  .put('/users/:id', (ctx: any) => userControl.update(ctx), updateUserValidation)
-  .delete('/users/:id', (ctx: any) => userControl.delete(ctx), deleteUserValidation)
+  .use(authMiddleware)
+  .post(
+    "/users",
+    ({ body }: { body: CreateUser }) => userControl.create({ body }),
+    createUserValidation,
+  )
+  .get(
+    "/users",
+    ({ query }: { query: { page?: string; limit?: string } }) => userControl.view({ query }),
+  )
+  .put(
+    "/users/:id",
+    ({ params, body }: { params: { id: string }; body: UpdateUser }) =>
+      userControl.update({ params, body }),
+    updateUserValidation,
+  )
+  .delete(
+    "/users/:id",
+    ({ params }: { params: { id: string } }) => userControl.delete({ params }),
+    deleteUserValidation,
+  );
