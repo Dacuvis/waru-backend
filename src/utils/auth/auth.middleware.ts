@@ -33,7 +33,11 @@ export const authMiddleware = new Elysia({ name: "auth-middleware" })
 
     // 2. Fallback: ambil dari cookie
     if (!token) {
-      token = cookie[TOKEN_COOKIE_NAME]?.value;
+      const cookieValue = cookie[TOKEN_COOKIE_NAME]?.value;
+
+      if (typeof cookieValue === "string") {
+        token = cookieValue;
+      }
     }
 
     if (!token) {

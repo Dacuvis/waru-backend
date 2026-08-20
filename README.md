@@ -21,26 +21,32 @@ Backend untuk aplikasi **Waru** — dibangun dengan [Bun](https://bun.sh), [Elys
 
 ```
 waru-backend/
-├── index.ts                   # Entry point
-├── public/                    # Asset publik (gambar, dll)
+├── index.ts                        # Entry point
+├── public/                         # Asset publik (gambar, dll)
 ├── src/
 │   ├── config/
-│   │   └── client.ts          # Koneksi MongoDB
+│   │   └── client.ts               # Koneksi MongoDB
 │   ├── moduls/
-│   │   ├── users/             # Modul users (CRUD)
-│   │   ├── register/          # Modul register dengan JWT
-│   │   ├── login/             # Modul login dengan JWT
-│   │   ├── boss/              # Modul boss
-│   │   ├── cashier/           # Modul cashier
-│   │   └── kitchen/           # Modul kitchen
+│   │   ├── users/                  # Modul users (CRUD)
+│   │   ├── register/               # Modul register dengan JWT
+│   │   ├── login/                  # Modul login dengan JWT
+│   │   ├── boss/                   # Modul boss
+│   │   ├── cashier/                # Modul cashier (orders + payment)
+│   │   ├── kitchen/                # Modul kitchen (manajemen antrian dapur)
+│   │   ├── inventory/              # Modul inventory (stok bahan baku)
+│   │   ├── promo/                  # Modul promo & diskon
+│   │   ├── review/                 # Modul ulasan pelanggan
+│   │   ├── notification/           # Modul notifikasi internal
+│   │   ├── analytics/              # Modul laporan & analitik bisnis
+│   │   └── business_assistant/     # Modul AI assistant bisnis
 │   └── utils/
-│       ├── cors/              # CORS settings
-│       ├── email/             # Email sender (nodemailer)
-│       ├── error/             # Global error handler
-│       ├── jwt/               # JWT helper (sign & verify)
-│       ├── logger/            # Logger
-│       ├── pagination/        # Pagination helper
-│       └── security/          # Hash & security helper
+│       ├── cors/                   # CORS settings
+│       ├── email/                  # Email sender (nodemailer)
+│       ├── error/                  # Global error handler
+│       ├── jwt/                    # JWT helper (sign & verify)
+│       ├── logger/                 # Logger (pino)
+│       ├── pagination/             # Pagination helper
+│       └── security/               # Hash & security helper
 ```
 
 ---
@@ -126,6 +132,132 @@ waru-backend/
 
 ---
 
+### Kitchen
+
+| Method | Endpoint                    | Keterangan                        |
+|--------|-----------------------------|-----------------------------------|
+| GET    | /kitchen                    | Ambil semua kitchen order         |
+| GET    | /kitchen/:id                | Ambil kitchen order by ID         |
+| GET    | /kitchen/status/:status     | Filter by status                  |
+| POST   | /kitchen                    | Buat kitchen order baru           |
+| PUT    | /kitchen/:id                | Update kitchen order              |
+| DELETE | /kitchen/:id                | Hapus kitchen order               |
+
+Status: `pending` → `in_progress` → `done` | `cancelled`
+
+---
+
+### Cashier — Orders
+
+| Method | Endpoint                  | Keterangan                              |
+|--------|---------------------------|-----------------------------------------|
+| GET    | /orders                   | Ambil semua order                       |
+| GET    | /orders/:id               | Ambil order by ID                       |
+| GET    | /orders/status/:status    | Filter order by status                  |
+| POST   | /orders                   | Buat order baru (auto-hitung total)     |
+| PUT    | /orders/:id               | Update order                            |
+| DELETE | /orders/:id               | Hapus order                             |
+
+### Cashier — Payment
+
+| Method | Endpoint       | Keterangan                                         |
+|--------|----------------|----------------------------------------------------|
+| GET    | /payment       | Ambil semua payment                                |
+| GET    | /payment/:id   | Ambil payment by ID                                |
+| POST   | /payment       | Buat payment (otomatis set order → completed)      |
+| PUT    | /payment/:id   | Update status payment                              |
+| DELETE | /payment/:id   | Hapus payment                                      |
+
+Method pembayaran: `cash` | `transfer` | `qris` | `card`
+
+---
+
+### Inventory
+
+| Method | Endpoint                    | Keterangan                        |
+|--------|-----------------------------|-----------------------------------|
+| GET    | /inventory                  | Ambil semua item                  |
+| GET    | /inventory/:id              | Ambil item by ID                  |
+| GET    | /inventory/low-stock        | Item di bawah stok minimum        |
+| GET    | /inventory/category/:cat    | Filter by kategori                |
+| POST   | /inventory                  | Tambah item baru                  |
+| PATCH  | /inventory/:id/stock        | Adjust stok (+ tambah / - kurang) |
+| PUT    | /inventory/:id              | Update item                       |
+| DELETE | /inventory/:id              | Hapus item                        |
+
+---
+
+### Promo
+
+| Method | Endpoint       | Keterangan                              |
+|--------|----------------|-----------------------------------------|
+| GET    | /promo         | Ambil semua promo                       |
+| GET    | /promo/active  | Ambil promo yang sedang aktif           |
+| GET    | /promo/:id     | Ambil promo by ID                       |
+| POST   | /promo         | Buat promo baru                         |
+| POST   | /promo/apply   | Hitung diskon dari kode promo           |
+| PUT    | /promo/:id     | Update promo                            |
+| DELETE | /promo/:id     | Hapus promo                             |
+
+---
+
+### Review
+
+| Method | Endpoint                    | Keterangan                        |
+|--------|-----------------------------|-----------------------------------|
+| GET    | /review                     | Ambil semua review                |
+| GET    | /review/published           | Ambil review yang dipublikasikan  |
+| GET    | /review/rating              | Rata-rata rating (query: target)  |
+| GET    | /review/target/:target      | Filter by target (menu/service)   |
+| GET    | /review/:id                 | Ambil review by ID                |
+| POST   | /review                     | Buat review baru                  |
+| PUT    | /review/:id                 | Update review                     |
+| DELETE | /review/:id                 | Hapus review                      |
+
+---
+
+### Notification
+
+| Method | Endpoint                      | Keterangan                            |
+|--------|-------------------------------|---------------------------------------|
+| GET    | /notification                 | Ambil semua notifikasi                |
+| GET    | /notification/unread          | Ambil notifikasi belum dibaca         |
+| GET    | /notification/target/:target  | Filter by target                      |
+| GET    | /notification/:id             | Ambil notifikasi by ID                |
+| POST   | /notification                 | Buat notifikasi baru                  |
+| PATCH  | /notification/read-all        | Tandai semua notifikasi sudah dibaca  |
+| PUT    | /notification/:id             | Update notifikasi                     |
+| DELETE | /notification/:id             | Hapus notifikasi                      |
+
+---
+
+### Analytics
+
+| Method | Endpoint               | Keterangan                                    |
+|--------|------------------------|-----------------------------------------------|
+| GET    | /analytics/dashboard   | Ringkasan lengkap (sales + menu + inventory + review) |
+| GET    | /analytics/sales       | Overview penjualan                            |
+| GET    | /analytics/sales/daily | Grafik penjualan harian                       |
+| GET    | /analytics/menu/top    | Top menu terlaris                             |
+| GET    | /analytics/inventory   | Ringkasan inventory                           |
+| GET    | /analytics/reviews     | Ringkasan rating & ulasan                     |
+
+Query parameter: `?period=today|week|month|year|custom` (+ `startDate` & `endDate` untuk custom)
+
+---
+
+### Business Assistant
+
+| Method | Endpoint                  | Keterangan                                  |
+|--------|---------------------------|---------------------------------------------|
+| GET    | /assistant                | Ambil semua sesi chat                       |
+| GET    | /assistant/:id            | Ambil sesi beserta riwayat chat             |
+| POST   | /assistant                | Buat sesi baru + pesan pertama              |
+| POST   | /assistant/:id/message    | Kirim pesan ke sesi yang ada                |
+| DELETE | /assistant/:id            | Hapus sesi                                  |
+
+---
+
 ## Environment Variables
 
 | Key            | Keterangan                          |
@@ -158,6 +290,14 @@ Beberapa bagian dari proyek ini dikembangkan dengan bantuan **AI (Kiro)**:
 ### `src/moduls/`
 - **`login/`** — Logika autentikasi login dibuat dengan bantuan AI, mencakup validasi input, pengecekan password, dan pengiriman JWT token via email.
 - **`register/`** — Alur registrasi akun dibuat dengan bantuan AI, mencakup validasi data, hashing password, penyimpanan user ke MongoDB, dan pengiriman token via email.
+- **`kitchen/`** — Modul manajemen antrian dapur dibuat dengan bantuan AI, mencakup type, model, validasi, service (dengan logger & pagination), controller, dan route lengkap.
+- **`cashier/`** — Modul kasir dibuat dengan bantuan AI menggunakan 2 collection terpisah (`orders` dan `payment`), mencakup auto-kalkulasi subtotal & total order, validasi pembayaran, penghitungan kembalian, dan update status order otomatis.
+- **`inventory/`** — Modul manajemen stok bahan baku dibuat dengan bantuan AI, mencakup CRUD, filter low-stock, filter kategori, dan endpoint adjust stok (+/-).
+- **`promo/`** — Modul promo & diskon dibuat dengan bantuan AI, mencakup CRUD, filter promo aktif, dan endpoint apply promo (hitung diskon berdasarkan tipe + validasi kuota & minimum order).
+- **`review/`** — Modul ulasan pelanggan dibuat dengan bantuan AI, mencakup CRUD, filter published, filter by target, dan agregasi rata-rata rating.
+- **`notification/`** — Modul notifikasi internal dibuat dengan bantuan AI, mencakup CRUD, filter unread, filter by target, dan endpoint mark-all-read.
+- **`analytics/`** — Modul laporan & analitik bisnis dibuat dengan bantuan AI, menggunakan MongoDB aggregation pipeline untuk merangkum data dari beberapa collection (orders, payment, inventory, review) dengan dukungan period filter.
+- **`business_assistant/`** — Modul AI assistant bisnis dibuat dengan bantuan AI, mencakup sistem sesi chat dan rule-based insight engine yang menganalisis data bisnis real-time untuk menghasilkan rekomendasi.
 
 ### `src/utils/`
 - **`jwt/`** — Sistem JWT (sign & verify token) dibuat dengan bantuan AI, termasuk penanganan expiry dan secret key dari environment variable.
