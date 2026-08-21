@@ -11,6 +11,16 @@ import type { CreateReview, UpdateReview } from "./review.type";
 export class ReviewService {
   private model = new ReviewModel();
 
+  private validateTarget(target?: string, targetId?: string) {
+    const validTargets = ["menu", "service", "overall"];
+    if (target && !validTargets.includes(target)) {
+      throw new AppError("Target review tidak valid", 400);
+    }
+    if (target === "menu" && !targetId) {
+      throw new AppError("targetId wajib diisi untuk review menu", 400);
+    }
+  }
+
   async getAll(query: PaginationQuery) {
     const { page, limit, skip } = parsePagination(query);
     logger.info({ page, limit }, "Mengambil daftar review");
@@ -51,11 +61,13 @@ export class ReviewService {
   }
 
   async getAverageRating(query: { target?: string; targetId?: string }) {
+    this.validateTarget(query.target, query.targetId);
     logger.info(query, "Mengambil rata-rata rating");
     return await this.model.getAverageRating(query.target, query.targetId);
   }
 
   async create(data: CreateReview) {
+    this.validateTarget(data.target, data.targetId);
     const now = new Date();
     const review = {
       ...data,
@@ -75,6 +87,11 @@ export class ReviewService {
   async update(id: string, data: UpdateReview) {
     const existing = await this.model.getById(id);
     if (!existing) throw new AppError(`Review dengan id ${id} tidak ditemukan`, 404);
+
+    this.validateTarget(
+      data.target ?? (existing as any).target,
+      data.targetId ?? (existing as any).targetId,
+    );
 
     const updated = await this.model.update(id, { ...data, updatedAt: new Date() });
     logger.info({ reviewId: id }, "Review diupdate");

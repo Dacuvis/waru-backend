@@ -10,8 +10,17 @@
 /** Nama cookie JWT */
 export const TOKEN_COOKIE_NAME = "waru_token";
 
-/** Durasi cookie: 7 hari dalam detik */
-export const TOKEN_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
+function getTokenCookieMaxAge(): number {
+  const expiry = Bun.env.JWT_EXPIRES_IN ?? "7d";
+  const match = expiry.match(/^(\d+)([smhd])$/);
+  if (!match) return 60 * 60 * 24 * 7;
+
+  const multipliers = { s: 1, m: 60, h: 3600, d: 86400 } as const;
+  return Number(match[1]) * multipliers[match[2] as keyof typeof multipliers];
+}
+
+/** Durasi cookie disamakan dengan masa berlaku JWT. */
+export const TOKEN_COOKIE_MAX_AGE = getTokenCookieMaxAge();
 
 export interface CookieConfig {
   maxAge?: number;

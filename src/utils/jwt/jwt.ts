@@ -17,7 +17,22 @@ export interface JwtPayload {
 
 // Encode base64url
 function base64url(str: string): string {
-  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  const bytes = new TextEncoder().encode(str);
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
+}
+
+function decodeBase64url(value: string): Uint8Array<ArrayBuffer> {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
 }
 
 // Parse expired time string seperti "7d", "1h", "60m"
@@ -82,9 +97,18 @@ export async function verifyJwt(token: string): Promise<JwtPayload> {
     ["verify"]
   );
 
-  // Kembalikan base64url ke base64 biasa
-  const base64Sig = signature.replace(/-/g, "+").replace(/_/g, "/");
-  const rawSig = Uint8Array.from(atob(base64Sig), (c) => c.charCodeAt(0));
+  let rawSig: Uint8Array<ArrayBuffer>;
+  let payload: JwtPayload;
+  try {
+    const parsedHeader = JSON.parse(new TextDecoder().decode(decodeBase64url(header)));
+    if (parsedHeader.alg !== "HS256" || parsedHeader.typ !== "JWT") {
+      throw new Error("Unsupported JWT header");
+    }
+    rawSig = decodeBase64url(signature);
+    payload = JSON.parse(new TextDecoder().decode(decodeBase64url(body)));
+  } catch {
+    throw new AppError("Token tidak valid", 401);
+  }
 
   const valid = await crypto.subtle.verify(
     "HMAC",
@@ -95,9 +119,11 @@ export async function verifyJwt(token: string): Promise<JwtPayload> {
 
   if (!valid) throw new AppError("Token tidak valid atau telah dimanipulasi", 401);
 
-  const payload: JwtPayload = JSON.parse(atob(body.replace(/-/g, "+").replace(/_/g, "/")));
+  if (typeof payload.id !== "string" || typeof payload.email !== "string") {
+    throw new AppError("Payload token tidak valid", 401);
+  }
 
-  if (!payload.exp || Math.floor(Date.now() / 1000) > payload.exp) {
+  if (!payload.exp || Math.floor(Date.now() / 1000) >= payload.exp) {
     throw new AppError("Token sudah kadaluarsa", 401);
   }
 

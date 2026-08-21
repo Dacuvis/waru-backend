@@ -77,6 +77,9 @@ export class InventoryService {
     }
 
     const updated = await this.model.adjustStock(id, data.amount, new Date());
+    if (!updated) {
+      throw new AppError("Stok berubah saat diproses dan jumlahnya tidak lagi mencukupi", 409);
+    }
     logger.info({ inventoryId: id, amount: data.amount, newQty }, "Stok inventory disesuaikan");
     return updated;
   }

@@ -18,6 +18,8 @@ export class LoginService {
     signFn: (payload: Record<string, unknown>) => Promise<string>,
     ctx: ElysiaContext,
   ): Promise<LoginResponse> {
+    email = email.trim().toLowerCase();
+
     // Cari user berdasarkan email
     const user = await this.model.findByEmail(email);
     if (!user) {
@@ -36,15 +38,14 @@ export class LoginService {
     // Sign JWT via @elysia/jwt
     const token = await signFn({ id: userId, email });
 
-    // Simpan token di cookie
-    setCookieToken(ctx, token);
-
     // Kirim email notifikasi login beserta token
     await sendEmail({
       to: email,
       subject: "Login berhasil ke Waru 👋",
       html: loginEmailTemplate(name, token),
     });
+
+    setCookieToken(ctx, token);
 
     return {
       message: "Login berhasil! Token dikirim ke email kamu.",

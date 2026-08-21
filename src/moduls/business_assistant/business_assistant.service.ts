@@ -247,6 +247,7 @@ export class BusinessAssistantService {
       role: "assistant",
       content: assistantResponse.message,
       timestamp: new Date(),
+      insights: assistantResponse.insights,
     });
 
     logger.info({ sessionId: id }, "Pesan dikirim ke business assistant");

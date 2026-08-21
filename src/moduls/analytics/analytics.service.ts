@@ -94,7 +94,10 @@ export class AnalyticsService {
 
   async getTopMenuItems(query: DateRangeQuery & { limit?: string }) {
     const { from, to } = resolveDateRange(query);
-    const limit = Math.min(parseInt(query.limit ?? "10"), 50);
+    const parsedLimit = Number.parseInt(query.limit ?? "10", 10);
+    const limit = Number.isFinite(parsedLimit) && parsedLimit > 0
+      ? Math.min(parsedLimit, 50)
+      : 10;
     logger.info({ from, to, limit }, "Mengambil top menu items");
     return await this.model.getTopMenuItems(from, to, limit);
   }

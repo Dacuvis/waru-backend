@@ -12,6 +12,7 @@ import type { CreateOrder, UpdateOrder, CreatePayment, UpdatePayment } from "./c
 
 export class OrderService {
   private model = new OrderModel();
+  private paymentModel = new PaymentModel();
 
   async getAll(query: PaginationQuery) {
     const { page, limit, skip } = parsePagination(query);
@@ -77,6 +78,7 @@ export class OrderService {
         ...item,
         subtotal: item.price * item.quantity,
       }));
+      updateData.items = items;
       updateData.totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
     }
 
@@ -88,6 +90,11 @@ export class OrderService {
   async delete(id: string) {
     const existing = await this.model.getById(id);
     if (!existing) throw new AppError(`Order dengan id ${id} tidak ditemukan`, 404);
+
+    const payment = await this.paymentModel.getByOrderId(id);
+    if (payment) {
+      throw new AppError("Order yang sudah memiliki payment tidak boleh dihapus", 409);
+    }
 
     const deleted = await this.model.delete(id);
     logger.info({ orderId: id }, "Order dihapus");
@@ -123,8 +130,8 @@ export class PaymentService {
 
     // Cek apakah order sudah dibayar
     const existing = await this.model.getByOrderId(data.orderId);
-    if (existing && existing.status === "paid") {
-      throw new AppError("Order ini sudah dibayar", 409);
+    if (existing) {
+      throw new AppError("Order ini sudah memiliki data payment", 409);
     }
 
     const totalAmount = (order as any).totalAmount as number;
@@ -146,7 +153,20 @@ export class PaymentService {
       updatedAt: now,
     };
 
-    const result = await this.model.create(payment);
+    let result;
+    try {
+      result = await this.model.create(payment);
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === 11000
+      ) {
+        throw new AppError("Order ini sudah memiliki data payment", 409);
+      }
+      throw error;
+    }
 
     // Update status order jadi completed
     await this.orderModel.update(data.orderId, {
@@ -166,6 +186,12 @@ export class PaymentService {
     if (!existing) throw new AppError(`Payment dengan id ${id} tidak ditemukan`, 404);
 
     const updated = await this.model.update(id, { ...data, updatedAt: new Date() });
+    if (data.status && data.status !== (existing as any).status) {
+      await this.orderModel.update((existing as any).orderId, {
+        status: data.status === "paid" ? "completed" : "pending",
+        updatedAt: new Date(),
+      });
+    }
     logger.info({ paymentId: id, status: data.status }, "Payment diupdate");
     return updated;
   }
@@ -175,6 +201,12 @@ export class PaymentService {
     if (!existing) throw new AppError(`Payment dengan id ${id} tidak ditemukan`, 404);
 
     const deleted = await this.model.delete(id);
+    if ((existing as any).status === "paid") {
+      await this.orderModel.update((existing as any).orderId, {
+        status: "pending",
+        updatedAt: new Date(),
+      });
+    }
     logger.info({ paymentId: id }, "Payment dihapus");
     return deleted;
   }

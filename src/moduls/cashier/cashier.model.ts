@@ -56,6 +56,10 @@ export class OrderModel {
 
 export class PaymentModel {
   private collection = db.collection("payment");
+  private orderIndexReady = this.collection.createIndex(
+    { orderId: 1 },
+    { unique: true, name: "payment_order_unique" },
+  );
 
   async getAll(skip: number, limit: number) {
     const [data, total] = await Promise.all([
@@ -71,10 +75,12 @@ export class PaymentModel {
   }
 
   async getByOrderId(orderId: string) {
+    await this.orderIndexReady;
     return await this.collection.findOne({ orderId });
   }
 
   async create(payment: Payment) {
+    await this.orderIndexReady;
     return await this.collection.insertOne(payment as any);
   }
 

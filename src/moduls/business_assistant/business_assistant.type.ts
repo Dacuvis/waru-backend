@@ -12,6 +12,7 @@ export interface AssistantMessage {
   role: AssistantMessageRole;
   content: string;
   timestamp: Date;
+  insights?: BusinessInsight[];
 }
 
 export interface AssistantSession {

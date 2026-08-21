@@ -39,7 +39,7 @@ export class ReviewModel {
   }
 
   async getAverageRating(target?: string, targetId?: string) {
-    const match: any = {};
+    const match: any = { isPublished: true };
     if (target) match.target = target;
     if (targetId) match.targetId = targetId;
 

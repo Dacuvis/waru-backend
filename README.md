@@ -303,3 +303,18 @@ Beberapa bagian dari proyek ini dikembangkan dengan bantuan **AI (Kiro)**:
 - **`jwt/`** — Sistem JWT (sign & verify token) dibuat dengan bantuan AI, termasuk penanganan expiry dan secret key dari environment variable.
 
 > Kode yang dihasilkan AI telah ditinjau dan disesuaikan dengan kebutuhan proyek.
+
+### Pengujian bagian AI
+
+Setelah API, MongoDB, dan SMTP test server berjalan, jalankan seluruh pengujian endpoint
+yang tercantum di atas dengan:
+
+```bash
+BASE_URL=http://localhost:3000 node tests/ai-endpoints.integration.mjs
+```
+
+Pengujian khusus utilitas JWT dapat dijalankan dengan:
+
+```bash
+bun test tests/jwt.test.ts
+```

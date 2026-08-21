@@ -19,6 +19,8 @@ export class RegisterService {
     signFn: (payload: Record<string, unknown>) => Promise<string>,
     ctx: ElysiaContext,
   ): Promise<RegisterResponse> {
+    email = email.trim().toLowerCase();
+
     // Cek apakah email sudah dipakai
     const existing = await this.model.findByEmail(email);
     if (existing) {
@@ -29,27 +31,45 @@ export class RegisterService {
     const hashedPassword = await hashPassword(password);
 
     // Simpan ke database
-    const result = await this.model.create({
-      name,
-      email,
-      password: hashedPassword,
-      createdAt: new Date(),
-    });
+    let result;
+    try {
+      result = await this.model.create({
+        name,
+        email,
+        password: hashedPassword,
+        createdAt: new Date(),
+      });
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === 11000
+      ) {
+        throw new AppError("Email sudah terdaftar", 409);
+      }
+      throw error;
+    }
 
     const userId = result.insertedId.toString();
 
     // Sign JWT via @elysia/jwt
     const token = await signFn({ id: userId, email });
 
-    // Simpan token di cookie
-    setCookieToken(ctx, token);
-
     // Kirim email selamat datang beserta token
-    await sendEmail({
-      to: email,
-      subject: "Selamat datang di Waru! 🎉",
-      html: welcomeEmailTemplate(name, token),
-    });
+    try {
+      await sendEmail({
+        to: email,
+        subject: "Selamat datang di Waru! 🎉",
+        html: welcomeEmailTemplate(name, token),
+      });
+    } catch (error) {
+      // Hindari akun setengah jadi yang membuat retry selalu gagal dengan 409.
+      await this.model.deleteById(result.insertedId);
+      throw error;
+    }
+
+    setCookieToken(ctx, token);
 
     return {
       message: "Registrasi berhasil! Token dikirim ke email kamu.",

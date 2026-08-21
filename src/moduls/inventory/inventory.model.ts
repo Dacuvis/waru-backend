@@ -51,8 +51,10 @@ export class InventoryModel {
 
   async adjustStock(id: string, amount: number, updatedAt: Date) {
     if (!ObjectId.isValid(id)) return null;
+    const filter: Record<string, unknown> = { _id: new ObjectId(id) };
+    if (amount < 0) filter.quantity = { $gte: Math.abs(amount) };
     return await this.collection.findOneAndUpdate(
-      { _id: new ObjectId(id) },
+      filter,
       { $inc: { quantity: amount }, $set: { updatedAt } },
       { returnDocument: "after" },
     );

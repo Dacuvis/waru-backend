@@ -11,6 +11,13 @@ import type { CreateNotification, UpdateNotification } from "./notification.type
 export class NotificationService {
   private model = new NotificationModel();
 
+  private validateTarget(target?: string) {
+    const validTargets = ["kitchen", "cashier", "admin", "all"];
+    if (target && !validTargets.includes(target)) {
+      throw new AppError("Target notifikasi tidak valid", 400);
+    }
+  }
+
   async getAll(query: PaginationQuery) {
     const { page, limit, skip } = parsePagination(query);
     logger.info({ page, limit }, "Mengambil semua notifikasi");
@@ -27,6 +34,7 @@ export class NotificationService {
   }
 
   async getUnread(query: PaginationQuery & { target?: string }) {
+    this.validateTarget(query.target);
     const { page, limit, skip } = parsePagination(query);
     logger.info({ target: query.target, page, limit }, "Mengambil notifikasi belum dibaca");
 
@@ -35,8 +43,7 @@ export class NotificationService {
   }
 
   async getByTarget(target: string, query: PaginationQuery) {
-    const validTargets = ["kitchen", "cashier", "admin", "all"];
-    if (!validTargets.includes(target)) throw new AppError("Target notifikasi tidak valid", 400);
+    this.validateTarget(target);
 
     const { page, limit, skip } = parsePagination(query);
     logger.info({ target, page, limit }, "Mengambil notifikasi by target");
@@ -67,6 +74,7 @@ export class NotificationService {
   }
 
   async markAllRead(target?: string) {
+    this.validateTarget(target);
     const result = await this.model.markAllRead(target);
     logger.info({ target, modifiedCount: result.modifiedCount }, "Semua notifikasi ditandai dibaca");
     return { modifiedCount: result.modifiedCount };

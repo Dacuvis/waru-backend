@@ -24,6 +24,9 @@ export async function sendEmail({ to, subject, html }: SendEmailOptions): Promis
     host: EMAIL_HOST,
     port: EMAIL_PORT,
     secure: false,
+    connectionTimeout: 5_000,
+    greetingTimeout: 5_000,
+    socketTimeout: 10_000,
     auth: {
       user: EMAIL_USER,
       pass: EMAIL_PASS,

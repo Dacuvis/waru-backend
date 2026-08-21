@@ -39,6 +39,16 @@ export class PromoService {
     const existing = await this.model.getByCode(data.code);
     if (existing) throw new AppError(`Kode promo "${data.code}" sudah digunakan`, 409);
 
+    if (data.type === "percentage" && data.discountValue > 100) {
+      throw new AppError("Diskon persentase tidak boleh lebih dari 100", 400);
+    }
+    if (data.type === "buy_x_get_y" || data.type === "free_item") {
+      throw new AppError(
+        `Tipe promo ${data.type} belum didukung karena detail item promo belum tersedia`,
+        400,
+      );
+    }
+
     const startDate = new Date(data.startDate);
     const endDate = new Date(data.endDate);
 
@@ -67,12 +77,26 @@ export class PromoService {
     const existing = await this.model.getById(id);
     if (!existing) throw new AppError(`Promo dengan id ${id} tidak ditemukan`, 404);
 
+    const resultingType = data.type ?? existing.type;
+    if (resultingType === "percentage" && (data.discountValue ?? existing.discountValue) > 100) {
+      throw new AppError("Diskon persentase tidak boleh lebih dari 100", 400);
+    }
+    if (data.type === "buy_x_get_y" || data.type === "free_item") {
+      throw new AppError(
+        `Tipe promo ${data.type} belum didukung karena detail item promo belum tersedia`,
+        400,
+      );
+    }
+
     const updateData: any = { ...data, updatedAt: new Date() };
 
-    if (data.startDate) updateData.startDate = new Date(data.startDate);
-    if (data.endDate) updateData.endDate = new Date(data.endDate);
-    if (data.code) updateData.code = data.code.toUpperCase();
-
+    const startDate = data.startDate ? new Date(data.startDate) : existing.startDate;
+    const endDate = data.endDate ? new Date(data.endDate) : existing.endDate;
+    if (isNaN(startDate.getTime())) throw new AppError("Format startDate tidak valid", 400);
+    if (isNaN(endDate.getTime())) throw new AppError("Format endDate tidak valid", 400);
+    if (endDate <= startDate) throw new AppError("endDate harus setelah startDate", 400);
+    if (data.startDate) updateData.startDate = startDate;
+    if (data.endDate) updateData.endDate = endDate;
     const updated = await this.model.update(id, updateData);
     logger.info({ promoId: id }, "Promo diupdate");
     return updated;
@@ -114,7 +138,10 @@ export class PromoService {
     const finalTotal = data.orderTotal - discountAmount;
 
     // Tambah usage count
-    await this.model.incrementUsage(String(promoData._id));
+    const consumed = await this.model.consumeUsage(String(promoData._id), now);
+    if (!consumed) {
+      throw new AppError("Promo sudah tidak aktif atau kuotanya baru saja habis", 409);
+    }
 
     logger.info(
       { promoCode: data.code, discountAmount, finalTotal },
