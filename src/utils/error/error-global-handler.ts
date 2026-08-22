@@ -2,19 +2,21 @@ export class AppError extends Error {
   constructor(
     message: string,
     public statusCode: number = 500,
+    public errorCode : string = "E99"
   ) {
     super(message);
     this.name = "AppError";
   }
 
-  static create(message: string, statusCode: number = 500): AppError {
-    return new AppError(message, statusCode);
+  static create(message: string, statusCode: number = 500, errorCode: string = "E99"): AppError {
+    return new AppError(message, statusCode, errorCode);
   }
 }
 
 export interface ErrorResponse {
   status: "error";
   statusCode: number;
+  code: string;
   message: string;
   details?: unknown;
 }
@@ -25,11 +27,13 @@ export interface ErrorResponse {
 export function buildErrorResponse(
   statusCode: number,
   message: string,
+  code: string,
   details?: unknown,
 ): ErrorResponse {
   return {
     status: "error",
     statusCode,
+    code,
     message,
     ...(details !== undefined ? { details } : {}),
   };
@@ -58,7 +62,7 @@ export function globalErrorHandler({
   if (error instanceof AppError) {
     set.status = error.statusCode;
     console.error(`[AppError] ${error.statusCode} - ${error.message}`);
-    return buildErrorResponse(error.statusCode, error.message);
+    return buildErrorResponse(error.statusCode, error.message, error.errorCode);
   }
 
   // --- Validation error dari Elysia (body/query/params tidak sesuai skema) ---
@@ -66,27 +70,26 @@ export function globalErrorHandler({
     set.status = 422;
     const details =
       error instanceof Error ? tryParseValidationDetails(error.message) : undefined;
-    console.error(`[ValidationError] 422 -`, details ?? error);
-    return buildErrorResponse(422, "Data yang dikirim tidak valid.", details);
+    return buildErrorResponse(422, "Data yang dikirim tidak valid.", "E10", details);
   }
 
   // --- Route tidak ditemukan ---
   if (code === "NOT_FOUND") {
     set.status = 404;
-    return buildErrorResponse(404, "Endpoint tidak ditemukan.");
+    return buildErrorResponse(404, "Endpoint tidak ditemukan.", "E30");
   }
 
   // --- Error JS/runtime biasa ---
   if (error instanceof Error) {
     console.error(`[UnhandledError] 500 - ${error.message}\n${error.stack}`);
     set.status = 500;
-    return buildErrorResponse(500, "Terjadi kesalahan pada server.");
+    return buildErrorResponse(500, "Terjadi kesalahan pada server.", "E50");
   }
 
   // --- Fallback ---
   console.error(`[UnknownError] 500 -`, error);
   set.status = 500;
-  return buildErrorResponse(500, "Terjadi kesalahan pada server.");
+  return buildErrorResponse(500, "Terjadi kesalahan pada server.", "E50");
 }
 
 /**

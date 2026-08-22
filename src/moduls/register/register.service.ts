@@ -24,7 +24,7 @@ export class RegisterService {
     // Cek apakah email sudah dipakai
     const existing = await this.model.findByEmail(email);
     if (existing) {
-      throw new AppError("Email sudah terdaftar", 409);
+      throw new AppError("Email sudah terdaftar", 409, "E40");
     }
 
     // Hash password
@@ -46,7 +46,7 @@ export class RegisterService {
         "code" in error &&
         error.code === 11000
       ) {
-        throw new AppError("Email sudah terdaftar", 409);
+        throw new AppError("Email sudah terdaftar", 409, "E40");
       }
       throw error;
     }

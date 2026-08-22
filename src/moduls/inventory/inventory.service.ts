@@ -21,7 +21,7 @@ export class InventoryService {
 
   async getById(id: string) {
     const item = await this.model.getById(id);
-    if (!item) throw new AppError(`Item inventory dengan id ${id} tidak ditemukan`, 404);
+    if (!item) throw new AppError(`Item inventory dengan id ${id} tidak ditemukan`, 404, "E30");
     logger.info({ inventoryId: id }, "Mengambil inventory by id");
     return item;
   }
@@ -36,7 +36,7 @@ export class InventoryService {
 
   async getByCategory(category: string, query: PaginationQuery) {
     const validCategories = ["food", "beverage", "packaging", "equipment", "other"];
-    if (!validCategories.includes(category)) throw new AppError("Kategori tidak valid", 400);
+    if (!validCategories.includes(category)) throw new AppError("Kategori tidak valid", 400, "E10");
 
     const { page, limit, skip } = parsePagination(query);
     logger.info({ category, page, limit }, "Mengambil inventory by category");
@@ -56,7 +56,7 @@ export class InventoryService {
 
   async update(id: string, data: UpdateInventoryItem) {
     const existing = await this.model.getById(id);
-    if (!existing) throw new AppError(`Item inventory dengan id ${id} tidak ditemukan`, 404);
+    if (!existing) throw new AppError(`Item inventory dengan id ${id} tidak ditemukan`, 404, "E30");
 
     const updated = await this.model.update(id, { ...data, updatedAt: new Date() });
     logger.info({ inventoryId: id }, "Item inventory diupdate");
@@ -65,7 +65,7 @@ export class InventoryService {
 
   async adjustStock(id: string, data: AdjustStock) {
     const existing = await this.model.getById(id);
-    if (!existing) throw new AppError(`Item inventory dengan id ${id} tidak ditemukan`, 404);
+    if (!existing) throw new AppError(`Item inventory dengan id ${id} tidak ditemukan`, 404, "E30");
 
     const currentQty = (existing as any).quantity as number;
     const newQty = currentQty + data.amount;
@@ -73,6 +73,7 @@ export class InventoryService {
       throw new AppError(
         `Stok tidak cukup. Stok saat ini: ${currentQty}, pengurangan: ${Math.abs(data.amount)}`,
         400,
+        "E10",
       );
     }
 
@@ -86,7 +87,7 @@ export class InventoryService {
 
   async delete(id: string) {
     const existing = await this.model.getById(id);
-    if (!existing) throw new AppError(`Item inventory dengan id ${id} tidak ditemukan`, 404);
+    if (!existing) throw new AppError(`Item inventory dengan id ${id} tidak ditemukan`, 404, "E30");
 
     const deleted = await this.model.delete(id);
     logger.info({ inventoryId: id }, "Item inventory dihapus");

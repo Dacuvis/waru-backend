@@ -24,14 +24,14 @@ export class OrderService {
 
   async getById(id: string) {
     const order = await this.model.getById(id);
-    if (!order) throw new AppError(`Order dengan id ${id} tidak ditemukan`, 404);
+    if (!order) throw new AppError(`Order dengan id ${id} tidak ditemukan`, 404, "E30");
     logger.info({ orderId: id }, "Mengambil order by id");
     return order;
   }
 
   async getByStatus(status: string, query: PaginationQuery) {
     const validStatuses = ["pending", "processing", "completed", "cancelled"];
-    if (!validStatuses.includes(status)) throw new AppError("Status order tidak valid", 400);
+    if (!validStatuses.includes(status)) throw new AppError("Status order tidak valid", 400, "E10");
 
     const { page, limit, skip } = parsePagination(query);
     logger.info({ status, page, limit }, "Mengambil orders by status");
@@ -65,7 +65,7 @@ export class OrderService {
 
   async update(id: string, data: UpdateOrder) {
     const existing = await this.model.getById(id);
-    if (!existing) throw new AppError(`Order dengan id ${id} tidak ditemukan`, 404);
+    if (!existing) throw new AppError(`Order dengan id ${id} tidak ditemukan`, 404, "E30");
 
     let updateData: UpdateOrder & { totalAmount?: number; updatedAt: Date } = {
       ...data,
@@ -89,11 +89,11 @@ export class OrderService {
 
   async delete(id: string) {
     const existing = await this.model.getById(id);
-    if (!existing) throw new AppError(`Order dengan id ${id} tidak ditemukan`, 404);
+    if (!existing) throw new AppError(`Order dengan id ${id} tidak ditemukan`, 404, "E30");
 
     const payment = await this.paymentModel.getByOrderId(id);
     if (payment) {
-      throw new AppError("Order yang sudah memiliki payment tidak boleh dihapus", 409);
+      throw new AppError("Order yang sudah memiliki payment tidak boleh dihapus", 409, "E40");
     }
 
     const deleted = await this.model.delete(id);
@@ -118,7 +118,7 @@ export class PaymentService {
 
   async getById(id: string) {
     const payment = await this.model.getById(id);
-    if (!payment) throw new AppError(`Payment dengan id ${id} tidak ditemukan`, 404);
+    if (!payment) throw new AppError(`Payment dengan id ${id} tidak ditemukan`, 404, "E30");
     logger.info({ paymentId: id }, "Mengambil payment by id");
     return payment;
   }
@@ -126,12 +126,12 @@ export class PaymentService {
   async create(data: CreatePayment) {
     // Validasi order exist
     const order = await this.orderModel.getById(data.orderId);
-    if (!order) throw new AppError(`Order dengan id ${data.orderId} tidak ditemukan`, 404);
+    if (!order) throw new AppError(`Order dengan id ${data.orderId} tidak ditemukan`, 404, "E30");
 
     // Cek apakah order sudah dibayar
     const existing = await this.model.getByOrderId(data.orderId);
     if (existing) {
-      throw new AppError("Order ini sudah memiliki data payment", 409);
+      throw new AppError("Order ini sudah memiliki data payment", 409, "E40");
     }
 
     const totalAmount = (order as any).totalAmount as number;
@@ -139,6 +139,7 @@ export class PaymentService {
       throw new AppError(
         `Jumlah bayar (${data.paidAmount}) kurang dari total tagihan (${totalAmount})`,
         400,
+        "E10",
       );
     }
 
@@ -163,7 +164,7 @@ export class PaymentService {
         "code" in error &&
         error.code === 11000
       ) {
-        throw new AppError("Order ini sudah memiliki data payment", 409);
+        throw new AppError("Order ini sudah memiliki data payment", 409, "E40");
       }
       throw error;
     }
@@ -183,7 +184,7 @@ export class PaymentService {
 
   async update(id: string, data: UpdatePayment) {
     const existing = await this.model.getById(id);
-    if (!existing) throw new AppError(`Payment dengan id ${id} tidak ditemukan`, 404);
+    if (!existing) throw new AppError(`Payment dengan id ${id} tidak ditemukan`, 404, "E30");
 
     const updated = await this.model.update(id, { ...data, updatedAt: new Date() });
     if (data.status && data.status !== (existing as any).status) {
@@ -198,7 +199,7 @@ export class PaymentService {
 
   async delete(id: string) {
     const existing = await this.model.getById(id);
-    if (!existing) throw new AppError(`Payment dengan id ${id} tidak ditemukan`, 404);
+    if (!existing) throw new AppError(`Payment dengan id ${id} tidak ditemukan`, 404, "E30");
 
     const deleted = await this.model.delete(id);
     if ((existing as any).status === "paid") {

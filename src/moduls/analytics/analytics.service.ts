@@ -15,9 +15,9 @@ function resolveDateRange(query: DateRangeQuery): { from: Date; to: Date } {
     }
     const from = new Date(query.startDate);
     const to = new Date(query.endDate);
-    if (isNaN(from.getTime())) throw new AppError("Format startDate tidak valid", 400);
-    if (isNaN(to.getTime())) throw new AppError("Format endDate tidak valid", 400);
-    if (to < from) throw new AppError("endDate harus setelah startDate", 400);
+    if (isNaN(from.getTime())) throw new AppError("Format startDate tidak valid", 400, "E10");
+    if (isNaN(to.getTime())) throw new AppError("Format endDate tidak valid", 400, "E10");
+    if (to < from) throw new AppError("endDate harus setelah startDate", 400, "E10");
     to.setHours(23, 59, 59, 999);
     return { from, to };
   }

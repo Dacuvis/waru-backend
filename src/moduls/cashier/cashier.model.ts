@@ -75,6 +75,7 @@ export class PaymentModel {
   }
 
   async getByOrderId(orderId: string) {
+    if (!ObjectId.isValid(orderId)) return null
     await this.orderIndexReady;
     return await this.collection.findOne({ orderId });
   }

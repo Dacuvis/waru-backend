@@ -23,13 +23,13 @@ export class LoginService {
     // Cari user berdasarkan email
     const user = await this.model.findByEmail(email);
     if (!user) {
-      throw new AppError("Email atau password salah", 401);
+      throw new AppError("Email atau password salah", 401, "E20");
     }
 
     // Verifikasi password
     const isMatch = await verifyPassword(password, user.password);
     if (!isMatch) {
-      throw new AppError("Email atau password salah", 401);
+      throw new AppError("Email atau password salah", 401, "E20");
     }
 
     const userId = user._id!.toString();

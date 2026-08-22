@@ -14,7 +14,7 @@ export class NotificationService {
   private validateTarget(target?: string) {
     const validTargets = ["kitchen", "cashier", "admin", "all"];
     if (target && !validTargets.includes(target)) {
-      throw new AppError("Target notifikasi tidak valid", 400);
+      throw new AppError("Target notifikasi tidak valid", 400, "E10");
     }
   }
 
@@ -28,7 +28,7 @@ export class NotificationService {
 
   async getById(id: string) {
     const notif = await this.model.getById(id);
-    if (!notif) throw new AppError(`Notifikasi dengan id ${id} tidak ditemukan`, 404);
+    if (!notif) throw new AppError(`Notifikasi dengan id ${id} tidak ditemukan`, 404, "E30");
     logger.info({ notifId: id }, "Mengambil notifikasi by id");
     return notif;
   }
@@ -66,7 +66,7 @@ export class NotificationService {
 
   async update(id: string, data: UpdateNotification) {
     const existing = await this.model.getById(id);
-    if (!existing) throw new AppError(`Notifikasi dengan id ${id} tidak ditemukan`, 404);
+    if (!existing) throw new AppError(`Notifikasi dengan id ${id} tidak ditemukan`, 404, "E30");
 
     const updated = await this.model.update(id, { ...data, updatedAt: new Date() });
     logger.info({ notifId: id }, "Notifikasi diupdate");
@@ -82,7 +82,7 @@ export class NotificationService {
 
   async delete(id: string) {
     const existing = await this.model.getById(id);
-    if (!existing) throw new AppError(`Notifikasi dengan id ${id} tidak ditemukan`, 404);
+    if (!existing) throw new AppError(`Notifikasi dengan id ${id} tidak ditemukan`, 404, "E30");
 
     const deleted = await this.model.delete(id);
     logger.info({ notifId: id }, "Notifikasi dihapus");

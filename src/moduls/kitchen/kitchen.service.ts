@@ -21,7 +21,7 @@ export class KitchenService {
 
   async getById(id: string) {
     const item = await this.model.getById(id);
-    if (!item) throw new AppError(`Kitchen order dengan id ${id} tidak ditemukan`, 404);
+    if (!item) throw new AppError(`Kitchen order dengan id ${id} tidak ditemukan`, 404, "E30");
     logger.info({ kitchenId: id }, "Mengambil kitchen order by id");
     return item;
   }
@@ -29,7 +29,7 @@ export class KitchenService {
   async getByStatus(status: string, query: PaginationQuery) {
     const validStatuses = ["pending", "in_progress", "done", "cancelled"];
     if (!validStatuses.includes(status)) {
-      throw new AppError("Status tidak valid", 400);
+      throw new AppError("Status tidak valid", 400, "E10");
     }
 
     const { page, limit, skip } = parsePagination(query);
@@ -54,7 +54,7 @@ export class KitchenService {
 
   async update(id: string, data: UpdateKitchenItem) {
     const existing = await this.model.getById(id);
-    if (!existing) throw new AppError(`Kitchen order dengan id ${id} tidak ditemukan`, 404);
+    if (!existing) throw new AppError(`Kitchen order dengan id ${id} tidak ditemukan`, 404, "E30");
 
     const updated = await this.model.update(id, { ...data, updatedAt: new Date() });
     logger.info({ kitchenId: id, status: data.status }, "Kitchen order diupdate");
@@ -63,7 +63,7 @@ export class KitchenService {
 
   async delete(id: string) {
     const existing = await this.model.getById(id);
-    if (!existing) throw new AppError(`Kitchen order dengan id ${id} tidak ditemukan`, 404);
+    if (!existing) throw new AppError(`Kitchen order dengan id ${id} tidak ditemukan`, 404, "E30");
 
     const deleted = await this.model.delete(id);
     logger.info({ kitchenId: id }, "Kitchen order dihapus");

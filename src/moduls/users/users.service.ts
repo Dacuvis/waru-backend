@@ -8,9 +8,9 @@ export class usersService {
   private userModel = new usersModel();
 
   async create(d: CreateUser) {
-    if (!d.name) throw new AppError("Berikan Nama ya... ganteng", 404);
-    if (!d.email) throw new AppError("Berikan Email ya.. ganteng", 404);
-    if (!d.password) throw new AppError("Berikan Password ya... ganteng", 404);
+    if (!d.name) throw new AppError("Berikan Nama ya... ganteng", 404, "E30");
+    if (!d.email) throw new AppError("Berikan Email ya.. ganteng", 404, "E30");
+    if (!d.password) throw new AppError("Berikan Password ya... ganteng", 404, "E30");
 
     const result = await this.userModel.create(d);
     logger.info({ userId: result.insertedId }, "User baru berhasil dibuat");
@@ -28,7 +28,7 @@ export class usersService {
   }
 
   async update(id: string, d: UpdateUser) {
-    if (!id) throw new AppError("ID user wajib diisi", 400);
+    if (!id) throw new AppError("ID user wajib diisi", 400, "E10");
 
     const updated = await this.userModel.update(id, d);
     if (!updated) throw new AppError("User tidak ditemukan", 404);
@@ -38,7 +38,7 @@ export class usersService {
   }
 
   async delete(id: string) {
-    if (!id) throw new AppError("ID user wajib diisi", 400);
+    if (!id) throw new AppError("ID user wajib diisi", 400, "E10");
 
     const deleted = await this.userModel.delete(id);
     if (!deleted) throw new AppError("User tidak ditemukan", 404);

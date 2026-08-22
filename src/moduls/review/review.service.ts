@@ -14,10 +14,10 @@ export class ReviewService {
   private validateTarget(target?: string, targetId?: string) {
     const validTargets = ["menu", "service", "overall"];
     if (target && !validTargets.includes(target)) {
-      throw new AppError("Target review tidak valid", 400);
+      throw new AppError("Target review tidak valid", 400, "E10");
     }
     if (target === "menu" && !targetId) {
-      throw new AppError("targetId wajib diisi untuk review menu", 400);
+      throw new AppError("targetId wajib diisi untuk review menu", 400, "E10");
     }
   }
 
@@ -31,7 +31,7 @@ export class ReviewService {
 
   async getById(id: string) {
     const review = await this.model.getById(id);
-    if (!review) throw new AppError(`Review dengan id ${id} tidak ditemukan`, 404);
+    if (!review) throw new AppError(`Review dengan id ${id} tidak ditemukan`, 404, "E30");
     logger.info({ reviewId: id }, "Mengambil review by id");
     return review;
   }
@@ -49,7 +49,7 @@ export class ReviewService {
     query: PaginationQuery & { targetId?: string },
   ) {
     const validTargets = ["menu", "service", "overall"];
-    if (!validTargets.includes(target)) throw new AppError("Target review tidak valid", 400);
+    if (!validTargets.includes(target)) throw new AppError("Target review tidak valid", 400, "E10");
 
     const { page, limit, skip } = parsePagination(query);
     const targetId = query.targetId;
@@ -86,7 +86,7 @@ export class ReviewService {
 
   async update(id: string, data: UpdateReview) {
     const existing = await this.model.getById(id);
-    if (!existing) throw new AppError(`Review dengan id ${id} tidak ditemukan`, 404);
+    if (!existing) throw new AppError(`Review dengan id ${id} tidak ditemukan`, 404, "E30");
 
     this.validateTarget(
       data.target ?? (existing as any).target,
@@ -100,7 +100,7 @@ export class ReviewService {
 
   async delete(id: string) {
     const existing = await this.model.getById(id);
-    if (!existing) throw new AppError(`Review dengan id ${id} tidak ditemukan`, 404);
+    if (!existing) throw new AppError(`Review dengan id ${id} tidak ditemukan`, 404, "E30");
 
     const deleted = await this.model.delete(id);
     logger.info({ reviewId: id }, "Review dihapus");

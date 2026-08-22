@@ -192,7 +192,7 @@ export class BusinessAssistantService {
 
   async getSessionById(id: string) {
     const session = await this.model.getSessionById(id);
-    if (!session) throw new AppError(`Sesi dengan id ${id} tidak ditemukan`, 404);
+    if (!session) throw new AppError(`Sesi dengan id ${id} tidak ditemukan`, 404, "E30");
     logger.info({ sessionId: id }, "Mengambil sesi by id");
     return session;
   }
@@ -230,7 +230,7 @@ export class BusinessAssistantService {
 
   async sendMessage(id: string, data: SendMessageRequest) {
     const session = await this.model.getSessionById(id);
-    if (!session) throw new AppError(`Sesi dengan id ${id} tidak ditemukan`, 404);
+    if (!session) throw new AppError(`Sesi dengan id ${id} tidak ditemukan`, 404, "E30");
 
     const now = new Date();
 
@@ -256,7 +256,7 @@ export class BusinessAssistantService {
 
   async deleteSession(id: string) {
     const session = await this.model.getSessionById(id);
-    if (!session) throw new AppError(`Sesi dengan id ${id} tidak ditemukan`, 404);
+    if (!session) throw new AppError(`Sesi dengan id ${id} tidak ditemukan`, 404, "E30");
 
     const deleted = await this.model.deleteSession(id);
     logger.info({ sessionId: id }, "Sesi business assistant dihapus");
