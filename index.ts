@@ -34,6 +34,7 @@ import { analyticsRoute } from "./src/moduls/analytics/analytics.route";
 
 // ── Business Assistant ───────────────────────────────────────────────────────
 import { businessAssistantRoute } from "./src/moduls/business_assistant/business_assistant.route";
+import { menuRoutes } from "./src/moduls/menu/menu.route";
 
 const app = new Elysia()
   .use(cors())
@@ -70,6 +71,7 @@ const app = new Elysia()
 
   // Kitchen
   .use(kitchenRoute)    // GET|POST|PUT|DELETE /kitchen
+  .use(menuRoutes)
 
   // Inventory
   .use(inventoryRoute)  // GET|POST|PUT|DELETE|PATCH /inventory
