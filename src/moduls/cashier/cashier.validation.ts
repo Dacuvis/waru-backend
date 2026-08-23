@@ -49,12 +49,10 @@ export const getOrderByIdValidation = {
 export const createPaymentValidation = {
   body: t.Object({
     orderId: t.String({ minLength: 1, error: "orderId wajib diisi" }),
-    paidAmount: t.Number({ minimum: 0, error: "Jumlah bayar tidak boleh negatif" }),
+    paidAmount: t.Optional(t.Number({ minimum: 0, error: "Jumlah bayar tidak boleh negatif" })),
     method: t.Union([
       t.Literal("cash"),
-      t.Literal("transfer"),
       t.Literal("qris"),
-      t.Literal("card"),
     ], { error: "Metode pembayaran tidak valid" }),
     notes: t.Optional(t.String()),
   }),
@@ -71,6 +69,7 @@ export const updatePaymentValidation = {
         t.Literal("refunded"),
       ], { error: "Status pembayaran tidak valid" }),
     ),
+    paidAmount: t.Optional(t.Number({ minimum: 0 })),
     notes: t.Optional(t.String()),
   }),
 };
@@ -81,4 +80,22 @@ export const deletePaymentValidation = {
 
 export const getPaymentByIdValidation = {
   params: t.Object({ id: t.String({ minLength: 1 }) }),
+};
+
+export const getPaymentByOrderIdValidation = {
+  params: t.Object({ orderId: t.String({ minLength: 1 }) }),
+};
+
+export const checkPaymentStatusValidation = {
+  params: t.Object({ id: t.String({ minLength: 1 }) }),
+};
+
+export const midtransNotificationValidation = {
+  body: t.Object({
+    order_id: t.String({ minLength: 1, error: "order_id wajib diisi" }),
+    status_code: t.String({ minLength: 1, error: "status_code wajib diisi" }),
+    gross_amount: t.String({ minLength: 1, error: "gross_amount wajib diisi" }),
+    signature_key: t.String({ minLength: 1, error: "signature_key wajib diisi" }),
+    transaction_status: t.String({ minLength: 1, error: "transaction_status wajib diisi" }),
+  }, { additionalProperties: true }),
 };

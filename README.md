@@ -38,7 +38,8 @@ waru-backend/
 │   │   ├── review/                 # Modul ulasan pelanggan
 │   │   ├── notification/           # Modul notifikasi internal
 │   │   ├── analytics/              # Modul laporan & analitik bisnis
-│   │   └── business_assistant/     # Modul AI assistant bisnis
+│   │   ├── business_assistant/     # Modul AI assistant bisnis
+│   │   └── upload/                 # Modul upload file & integrasi folder public
 │   └── utils/
 │       ├── cors/                   # CORS settings
 │       ├── email/                  # Email sender (nodemailer)
@@ -71,6 +72,12 @@ waru-backend/
    EMAIL_PORT=587
    EMAIL_USER=your-email@gmail.com
    EMAIL_PASS=your-gmail-app-password
+
+   # Midtrans Payment Gateway
+   MIDTRANS_MERCHANT_ID=your-merchant-id
+   MIDTRANS_CLIENT_KEY=your-client-key
+   MIDTRANS_SERVER_KEY=your-server-key
+   MIDTRANS_IS_PRODUCTION=false
    ```
 
 3. Jalankan server:
@@ -160,15 +167,19 @@ Status: `pending` → `in_progress` → `done` | `cancelled`
 
 ### Cashier — Payment
 
-| Method | Endpoint       | Keterangan                                         |
-|--------|----------------|----------------------------------------------------|
-| GET    | /payment       | Ambil semua payment                                |
-| GET    | /payment/:id   | Ambil payment by ID                                |
-| POST   | /payment       | Buat payment (otomatis set order → completed)      |
-| PUT    | /payment/:id   | Update status payment                              |
-| DELETE | /payment/:id   | Hapus payment                                      |
+| Method | Endpoint                 | Keterangan                                                         |
+|--------|--------------------------|--------------------------------------------------------------------|
+| GET    | /payment                 | Ambil semua payment (🔒 JWT)                                       |
+| GET    | /payment/:id             | Ambil payment by ID (🔒 JWT)                                       |
+| GET    | /payment/order/:orderId  | Ambil payment by order ID (🔒 JWT)                                 |
+| GET    | /payment/:id/status      | Cek dan sinkronisasi status QRIS ke Midtrans (🔒 JWT)               |
+| POST   | /payment                 | Buat payment Cash / QRIS via Midtrans (🔒 JWT)                      |
+| PUT    | /payment/:id             | Update status payment (🔒 JWT)                                     |
+| DELETE | /payment/:id             | Hapus payment (🔒 JWT)                                             |
+| POST   | /payment/notification    | Webhook notifikasi pembayaran dari Midtrans (Public)               |
+| POST   | /payment/midtrans-webhook| Alias webhook notifikasi Midtrans (Public)                         |
 
-Method pembayaran: `cash` | `transfer` | `qris` | `card`
+Method pembayaran: `cash` | `qris` (via Midtrans Core API)
 
 ---
 
@@ -255,6 +266,21 @@ Query parameter: `?period=today|week|month|year|custom` (+ `startDate` & `endDat
 | POST   | /assistant                | Buat sesi baru + pesan pertama              |
 | POST   | /assistant/:id/message    | Kirim pesan ke sesi yang ada                |
 | DELETE | /assistant/:id            | Hapus sesi                                  |
+
+---
+
+### Upload & Static Assets
+
+| Method | Endpoint                  | Keterangan                                  |
+|--------|---------------------------|---------------------------------------------|
+| GET    | /upload                   | Ambil daftar file yang diunggah             |
+| GET    | /upload/:id               | Ambil metadata file by ID                   |
+| POST   | /upload                   | Unggah single file (multipart form-data)    |
+| POST   | /upload/single            | Unggah single file (multipart form-data)    |
+| POST   | /upload/multiple          | Unggah multiple files (multipart form-data) |
+| DELETE | /upload/:id               | Hapus file dan metadata dari disk & DB      |
+| GET    | /public/*                 | Akses static file publik (e.g. `/public/uploads/...`) |
+| GET    | /uploads/*                | Alias akses static file `/public/uploads/*` |
 
 ---
 

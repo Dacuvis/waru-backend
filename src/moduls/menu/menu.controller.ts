@@ -5,16 +5,16 @@ const service = new MenuService();
 
 export class MenuController {
   async findAll({ query }: { query: { page?: string; limit?: string; category?: typefood; isAvailable?: string } }) {
-    const filter: MenuFilter = {
-      category: query.category as typefood,
-      isAvailable:
-        query.isAvailable === "true"
-          ? true
-          : query.isAvailable === "false"
-          ? false
-          : undefined,
+    const filter: MenuFilter = {};
+    if (query.category) {
+      filter.category = query.category as typefood;
     }
-    return await service.findAll(query,filter);
+    if (query.isAvailable === "true") {
+      filter.isAvailable = true;
+    } else if (query.isAvailable === "false") {
+      filter.isAvailable = false;
+    }
+    return await service.findAll(query, filter);
   }
 
   async findById({ params }: { params: { id: string } }) {

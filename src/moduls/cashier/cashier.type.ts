@@ -41,7 +41,7 @@ export interface UpdateOrder {
 
 // ─── Payment ─────────────────────────────────────────────────────────────────
 
-export type PaymentMethod = "cash" | "transfer" | "qris" | "card";
+export type PaymentMethod = "cash" | "qris";
 export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
 
 export interface Payment {
@@ -53,6 +53,12 @@ export interface Payment {
   changeAmount: number;  // kembalian
   method: PaymentMethod;
   status: PaymentStatus;
+  transactionId?: string;
+  midtransOrderId?: string;
+  qrString?: string;
+  qrUrl?: string;
+  expiryTime?: Date | string;
+  settlementTime?: Date | string;
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -60,12 +66,38 @@ export interface Payment {
 
 export interface CreatePayment {
   orderId: string;
-  paidAmount: number;
+  paidAmount?: number;
   method: PaymentMethod;
   notes?: string;
 }
 
 export interface UpdatePayment {
   status?: PaymentStatus;
+  paidAmount?: number;
+  changeAmount?: number;
+  transactionId?: string;
+  midtransOrderId?: string;
+  qrString?: string;
+  qrUrl?: string;
+  expiryTime?: Date | string;
+  settlementTime?: Date | string;
   notes?: string;
+}
+
+// ─── Midtrans Notification ──────────────────────────────────────────────────
+
+export interface MidtransNotificationPayload {
+  order_id: string;
+  status_code: string;
+  gross_amount: string;
+  signature_key: string;
+  transaction_status: string;
+  fraud_status?: string;
+  transaction_id?: string;
+  payment_type?: string;
+  transaction_time?: string;
+  settlement_time?: string;
+  status_message?: string;
+  merchant_id?: string;
+  [key: string]: any;
 }

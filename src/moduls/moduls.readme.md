@@ -47,6 +47,20 @@ Modul khusus untuk role dapur. *(dalam pengembangan)*
 
 ---
 
+### `upload/`
+Modul untuk upload file dan penyimpanan ke folder `public/uploads`.
+
+| Method | Endpoint          | Keterangan                             |
+|--------|-------------------|----------------------------------------|
+| GET    | /upload           | Ambil daftar file yang sudah diunggah  |
+| GET    | /upload/:id       | Ambil info metadata file by ID         |
+| POST   | /upload           | Unggah single file                     |
+| POST   | /upload/single    | Unggah single file                     |
+| POST   | /upload/multiple  | Unggah multiple files                  |
+| DELETE | /upload/:id       | Hapus metadata dan file fisik dari disk|
+
+---
+
 ## Catatan
 
 - Semua error dilempar menggunakan `AppError` dari `utils/error/`.

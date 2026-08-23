@@ -1,5 +1,11 @@
 import { OrderService, PaymentService } from "./cashier.service";
-import type { CreateOrder, UpdateOrder, CreatePayment, UpdatePayment } from "./cashier.type";
+import type {
+  CreateOrder,
+  UpdateOrder,
+  CreatePayment,
+  UpdatePayment,
+  MidtransNotificationPayload,
+} from "./cashier.type";
 
 const orderService = new OrderService();
 const paymentService = new PaymentService();
@@ -49,6 +55,10 @@ export class PaymentController {
     return await paymentService.getById(params.id);
   }
 
+  async getByOrderId({ params }: { params: { orderId: string } }) {
+    return await paymentService.getByOrderId(params.orderId);
+  }
+
   async create({ body }: { body: CreatePayment }) {
     return await paymentService.create(body);
   }
@@ -59,5 +69,13 @@ export class PaymentController {
 
   async delete({ params }: { params: { id: string } }) {
     return await paymentService.delete(params.id);
+  }
+
+  async checkStatus({ params }: { params: { id: string } }) {
+    return await paymentService.checkStatus(params.id);
+  }
+
+  async handleNotification({ body }: { body: MidtransNotificationPayload }) {
+    return await paymentService.handleNotification(body);
   }
 }

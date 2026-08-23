@@ -12,7 +12,7 @@ export class MenuModel {
   async findAll(skip: number, limit: number, filter: MenuFilter = {}) {
     const [data, total] = await Promise.all([
       this.collection.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray(),
-      this.collection.countDocuments(),
+      this.collection.countDocuments(filter),
     ]);
     return { data, total };
   }

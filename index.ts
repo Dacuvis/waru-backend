@@ -2,7 +2,7 @@ import { Elysia } from "elysia";
 import { cors } from "@elysia/cors";
 
 // ── Utils ────────────────────────────────────────────────────────────────────
-import { globalErrorHandler } from "./src/utils/error/error-global-handler";
+import { globalErrorHandler, buildErrorResponse } from "./src/utils/error/error-global-handler";
 import { swaggerConfig } from "./src/utils/swagger";
 import { logger } from "./src/utils/logger/logger";
 
@@ -36,6 +36,9 @@ import { analyticsRoute } from "./src/moduls/analytics/analytics.route";
 import { businessAssistantRoute } from "./src/moduls/business_assistant/business_assistant.route";
 import { menuRoutes } from "./src/moduls/menu/menu.route";
 
+// ── Upload ───────────────────────────────────────────────────────────────────
+import { uploadRoute } from "./src/moduls/upload/upload.route";
+
 const app = new Elysia()
   .use(cors())
   .use(swaggerConfig)
@@ -58,9 +61,30 @@ const app = new Elysia()
 
   .onError(({ error, set, code }) => globalErrorHandler({ error, set, code }))
 
+  // ── Static Files (Public Assets) ──────────────────────────────────────────
+  .get("/public/*", async ({ params, set }) => {
+    const filePath = `public/${params["*"]}`;
+    const file = Bun.file(filePath);
+    if (!(await file.exists())) {
+      set.status = 404;
+      return buildErrorResponse(404, "File tidak ditemukan.", "E30");
+    }
+    return file;
+  })
+  .get("/uploads/*", async ({ params, set }) => {
+    const filePath = `public/uploads/${params["*"]}`;
+    const file = Bun.file(filePath);
+    if (!(await file.exists())) {
+      set.status = 404;
+      return buildErrorResponse(404, "File tidak ditemukan.", "E30");
+    }
+    return file;
+  })
+
   // ── Public routes (tidak perlu token) ───────────────────────────────────
   .use(registerRoute)   // POST /auth/register
   .use(loginRoute)      // POST /auth/login
+  .use(uploadRoute)     // GET|POST|DELETE /upload
 
   // ── Protected routes (wajib JWT token di header atau cookie) ────────────
   .use(usersRoute)      // GET|POST|PUT|DELETE /users
