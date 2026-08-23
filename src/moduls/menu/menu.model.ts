@@ -1,6 +1,6 @@
 import { ObjectId } from "mongodb";
 import { db } from "../../config/client";
-import type { Menu, UpdateMenu } from "./menu.type";
+import type { Menu, UpdateMenu, MenuFilter } from "./menu.type";
 
 export class MenuModel {
   private collection = db.collection("menu")
@@ -9,9 +9,9 @@ export class MenuModel {
     return await this.collection.insertOne(menu);
   }
 
-  async findAll(skip: number, limit: number) {
+  async findAll(skip: number, limit: number, filter: MenuFilter = {}) {
     const [data, total] = await Promise.all([
-      this.collection.find().sort({ createdAt: -1 }).skip(skip).limit(limit).toArray(),
+      this.collection.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray(),
       this.collection.countDocuments(),
     ]);
     return { data, total };

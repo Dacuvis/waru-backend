@@ -3,16 +3,16 @@ import { buildPaginationResult, parsePagination, type PaginationQuery, type Pagi
 import { MenuModel } from "./menu.model";
 import { logger } from "../../utils/logger/logger";
 import { AppError } from "../../utils/error/error-global-handler";
-import type { Menu, UpdateMenu } from "./menu.type";
+import type { Menu, UpdateMenu, MenuFilter } from "./menu.type";
 
 export class MenuService {
   private model = new MenuModel()
 
-  async findAll(query: PaginationQuery) {
+  async findAll(query: PaginationQuery, filter: MenuFilter = {}) {
     const { page, limit, skip } = parsePagination(query);
     logger.info(`Fetching menu items: page=${page}, limit=${limit}, skip=${skip}`);
 
-    const { data, total } = await this.model.findAll(skip, limit);
+    const { data, total } = await this.model.findAll(skip, limit, filter);
     return buildPaginationResult(data, total, page, limit);
   }
 

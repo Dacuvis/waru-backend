@@ -1,11 +1,20 @@
 import { MenuService } from "./menu.service";
-import type { Menu, UpdateMenu } from "./menu.type";
+import type { Menu, MenuFilter, typefood, UpdateMenu } from "./menu.type";
 
 const service = new MenuService();
 
 export class MenuController {
-  async findAll({ query }: { query: { page?: string; limit?: string } }) {
-    return await service.findAll(query);
+  async findAll({ query }: { query: { page?: string; limit?: string; category?: typefood; isAvailable?: string } }) {
+    const filter: MenuFilter = {
+      category: query.category as typefood,
+      isAvailable:
+        query.isAvailable === "true"
+          ? true
+          : query.isAvailable === "false"
+          ? false
+          : undefined,
+    }
+    return await service.findAll(query,filter);
   }
 
   async findById({ params }: { params: { id: string } }) {
