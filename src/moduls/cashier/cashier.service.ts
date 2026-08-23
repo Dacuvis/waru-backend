@@ -304,8 +304,9 @@ export class PaymentService {
     }
     if (!payment && payload.order_id.startsWith("ORDER-")) {
       const parts = payload.order_id.split("-");
-      if (parts.length >= 2) {
-        payment = await this.model.getByOrderId(parts[1]);
+      const extractedOrderId = parts[1];
+      if (extractedOrderId) {
+        payment = await this.model.getByOrderId(extractedOrderId);
       }
     }
 
