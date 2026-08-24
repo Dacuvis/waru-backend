@@ -38,6 +38,7 @@ export class RegisterService {
         email,
         password: hashedPassword,
         createdAt: new Date(),
+        role: "customer",
       });
     } catch (error) {
       if (
@@ -54,7 +55,7 @@ export class RegisterService {
     const userId = result.insertedId.toString();
 
     // Sign JWT via @elysia/jwt
-    const token = await signFn({ id: userId, email });
+    const token = await signFn({ id: userId, email, role: "customer" });
 
     // Kirim email selamat datang beserta token
     try {

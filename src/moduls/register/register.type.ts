@@ -6,6 +6,7 @@ export interface RegisterUser {
   email: string;
   password: string;
   createdAt: Date;
+  role: "customer";
 }
 
 export interface RegisterResponse {

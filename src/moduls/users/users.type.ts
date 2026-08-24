@@ -6,6 +6,7 @@ export interface CreateUser {
   email: string
   password: string
   IsActive: boolean
+  role?: string
 }
 
 export interface UpdateUser {
@@ -13,4 +14,5 @@ export interface UpdateUser {
   email?: string
   password?: string
   IsActive?: boolean
+  role?: string
 }

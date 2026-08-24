@@ -34,9 +34,10 @@ export class LoginService {
 
     const userId = user._id!.toString();
     const name = user.name as string;
+    const role = (user as any).role || "customer";
 
     // Sign JWT via @elysia/jwt
-    const token = await signFn({ id: userId, email });
+    const token = await signFn({ id: userId, email, role });
 
     // Kirim email notifikasi login beserta token
     await sendEmail({
