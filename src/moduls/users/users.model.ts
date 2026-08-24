@@ -11,7 +11,7 @@ export class usersModel {
 
   async view(skip: number, limit: number) {
     const [data, total] = await Promise.all([
-      this.userDb.find().skip(skip).limit(limit).toArray(),
+      this.userDb.find({}, { projection: { password: 0 } }).skip(skip).limit(limit).toArray(),
       this.userDb.countDocuments(),
     ]);
     return { data, total };
@@ -21,11 +21,11 @@ export class usersModel {
     return await this.userDb.findOneAndUpdate(
       { _id: new ObjectId(id) },
       { $set: d },
-      { returnDocument: "after" },
+      { returnDocument: "after", projection: { password: 0 } },
     );
   }
 
   async delete(id: string) {
-    return await this.userDb.findOneAndDelete({ _id: new ObjectId(id) });
+    return await this.userDb.findOneAndDelete({ _id: new ObjectId(id) }, { projection: { password: 0 } });
   }
 }

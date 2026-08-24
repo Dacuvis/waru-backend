@@ -1,8 +1,15 @@
 import { AppError } from "../../utils/error/error-global-handler";
 import { logger } from "../../utils/logger/logger";
 import { parsePagination, buildPaginationResult, type PaginationQuery } from "../../utils/pagination/pagination";
+import { hashPassword } from "../../utils/security/hash";
 import { usersModel } from "./users.model";
 import type { CreateUser, UpdateUser } from "./users.type";
+
+function sanitizeUser(user: any) {
+  if (!user) return user;
+  const { password, ...rest } = user;
+  return rest;
+}
 
 export class usersService {
   private userModel = new usersModel();
@@ -12,7 +19,14 @@ export class usersService {
     if (!d.email) throw new AppError("Berikan Email ya.. ganteng", 404, "E30");
     if (!d.password) throw new AppError("Berikan Password ya... ganteng", 404, "E30");
 
-    const result = await this.userModel.create(d);
+    const hashedPassword = await hashPassword(d.password);
+    const userToCreate = {
+      ...d,
+      password: hashedPassword,
+      createdAt: new Date(),
+    };
+
+    const result = await this.userModel.create(userToCreate);
     logger.info({ userId: result.insertedId }, "User baru berhasil dibuat");
     return result;
   }
@@ -23,18 +37,24 @@ export class usersService {
     logger.info({ page, limit }, "Mengambil daftar users");
 
     const { data, total } = await this.userModel.view(skip, limit);
+    const sanitizedData = data.map(sanitizeUser);
 
-    return buildPaginationResult(data, total, page, limit);
+    return buildPaginationResult(sanitizedData, total, page, limit);
   }
 
   async update(id: string, d: UpdateUser) {
     if (!id) throw new AppError("ID user wajib diisi", 400, "E10");
 
-    const updated = await this.userModel.update(id, d);
+    let updateData = { ...d };
+    if (d.password) {
+      updateData.password = await hashPassword(d.password);
+    }
+
+    const updated = await this.userModel.update(id, updateData);
     if (!updated) throw new AppError("User tidak ditemukan", 404);
 
     logger.info({ userId: id }, "User berhasil diupdate");
-    return updated;
+    return sanitizeUser(updated);
   }
 
   async delete(id: string) {
@@ -44,6 +64,6 @@ export class usersService {
     if (!deleted) throw new AppError("User tidak ditemukan", 404);
 
     logger.info({ userId: id }, "User berhasil dihapus");
-    return deleted;
+    return sanitizeUser(deleted);
   }
 }
