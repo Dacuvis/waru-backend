@@ -1,6 +1,7 @@
 import { Elysia } from "elysia";
 import { usersController } from "./users.controller";
 import { authMiddleware } from "../../utils/auth/auth.middleware";
+import { requireRole } from "../../utils/auth/role.middleware";
 import {
   createUserValidation,
   updateUserValidation,
@@ -12,6 +13,7 @@ const userControl = new usersController();
 
 export const usersRoute = new Elysia()
   .use(authMiddleware)
+  .use(requireRole(["boss"]))
   .post(
     "/users",
     ({ body }: { body: CreateUser }) => userControl.create({ body }),

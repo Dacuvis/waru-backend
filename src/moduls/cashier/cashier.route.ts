@@ -1,5 +1,6 @@
 import { Elysia } from "elysia";
 import { authMiddleware } from "../../utils/auth/auth.middleware";
+import { requireRole } from "../../utils/auth/role.middleware";
 import { OrderController, PaymentController } from "./cashier.controller";
 import {
   createOrderValidation,
@@ -30,50 +31,62 @@ const paymentCtrl = new PaymentController();
 export const ordersRoute = new Elysia({ prefix: "/orders" })
   .use(authMiddleware)
 
-  // GET /orders?page=1&limit=10
-  .get("/", ({ query }: { query: { page?: string; limit?: string } }) =>
-    orderCtrl.getAll({ query }),
+  // Customer & Cashier
+  .use(
+    new Elysia()
+      .use(requireRole(["customer", "cashier"]))
+      // GET /orders?page=1&limit=10
+      .get("/", ({ query }: { query: { page?: string; limit?: string } }) =>
+        orderCtrl.getAll({ query }),
+      )
+      // GET /orders/:id
+      .get(
+        "/:id",
+        ({ params }: { params: { id: string } }) => orderCtrl.getById({ params }),
+        getOrderByIdValidation,
+      )
+      // POST /orders
+      .post(
+        "/",
+        ({ body }: { body: CreateOrder }) => orderCtrl.create({ body }),
+        createOrderValidation,
+      )
   )
 
-  // GET /orders/:id
-  .get(
-    "/:id",
-    ({ params }: { params: { id: string } }) => orderCtrl.getById({ params }),
-    getOrderByIdValidation,
+  // Cashier Only
+  .use(
+    new Elysia()
+      .use(requireRole(["cashier"]))
+      // GET /orders/status/:status
+      .get(
+        "/status/:status",
+        ({
+          params,
+          query,
+        }: {
+          params: { status: string };
+          query: { page?: string; limit?: string };
+        }) => orderCtrl.getByStatus({ params, query }),
+      )
+      // PUT /orders/:id
+      .put(
+        "/:id",
+        ({ params, body }: { params: { id: string }; body: UpdateOrder }) =>
+          orderCtrl.update({ params, body }),
+        updateOrderValidation,
+      )
   )
 
-  // GET /orders/status/:status
-  .get(
-    "/status/:status",
-    ({
-      params,
-      query,
-    }: {
-      params: { status: string };
-      query: { page?: string; limit?: string };
-    }) => orderCtrl.getByStatus({ params, query }),
-  )
-
-  // POST /orders
-  .post(
-    "/",
-    ({ body }: { body: CreateOrder }) => orderCtrl.create({ body }),
-    createOrderValidation,
-  )
-
-  // PUT /orders/:id
-  .put(
-    "/:id",
-    ({ params, body }: { params: { id: string }; body: UpdateOrder }) =>
-      orderCtrl.update({ params, body }),
-    updateOrderValidation,
-  )
-
-  // DELETE /orders/:id
-  .delete(
-    "/:id",
-    ({ params }: { params: { id: string } }) => orderCtrl.delete({ params }),
-    deleteOrderValidation,
+  // Boss Only
+  .use(
+    new Elysia()
+      .use(requireRole(["boss"]))
+      // DELETE /orders/:id
+      .delete(
+        "/:id",
+        ({ params }: { params: { id: string } }) => orderCtrl.delete({ params }),
+        deleteOrderValidation,
+      )
   );
 
 // ─── Payment Route : /payment ─────────────────────────────────────────────
@@ -94,59 +107,70 @@ export const paymentRoute = new Elysia({ prefix: "/payment" })
   )
 
   // ─── Protected Cashier Endpoints (Wajib token JWT) ────────────────────────
-  .guard((app) =>
-    app
+  .use(
+    new Elysia()
       .use(authMiddleware)
 
-      // GET /payment?page=1&limit=10
-      .get("/", ({ query }: { query: { page?: string; limit?: string } }) =>
-        paymentCtrl.getAll({ query }),
+      // Customer & Cashier
+      .use(
+        new Elysia()
+          .use(requireRole(["customer", "cashier"]))
+          // GET /payment?page=1&limit=10
+          .get("/", ({ query }: { query: { page?: string; limit?: string } }) =>
+            paymentCtrl.getAll({ query }),
+          )
+          // GET /payment/order/:orderId
+          .get(
+            "/order/:orderId",
+            ({ params }: { params: { orderId: string } }) =>
+              paymentCtrl.getByOrderId({ params }),
+            getPaymentByOrderIdValidation,
+          )
+          // GET /payment/:id
+          .get(
+            "/:id",
+            ({ params }: { params: { id: string } }) =>
+              paymentCtrl.getById({ params }),
+            getPaymentByIdValidation,
+          )
+          // POST /payment (Buat pembayaran Cash / QRIS Midtrans)
+          .post(
+            "/",
+            ({ body }: { body: CreatePayment }) => paymentCtrl.create({ body }),
+            createPaymentValidation,
+          )
       )
 
-      // GET /payment/order/:orderId
-      .get(
-        "/order/:orderId",
-        ({ params }: { params: { orderId: string } }) =>
-          paymentCtrl.getByOrderId({ params }),
-        getPaymentByOrderIdValidation,
+      // Cashier Only
+      .use(
+        new Elysia()
+          .use(requireRole(["cashier"]))
+          // GET /payment/:id/status (Cek status transaksi ke Midtrans)
+          .get(
+            "/:id/status",
+            ({ params }: { params: { id: string } }) =>
+              paymentCtrl.checkStatus({ params }),
+            checkPaymentStatusValidation,
+          )
+          // PUT /payment/:id
+          .put(
+            "/:id",
+            ({ params, body }: { params: { id: string }; body: UpdatePayment }) =>
+              paymentCtrl.update({ params, body }),
+            updatePaymentValidation,
+          )
       )
 
-      // GET /payment/:id/status (Cek status transaksi ke Midtrans)
-      .get(
-        "/:id/status",
-        ({ params }: { params: { id: string } }) =>
-          paymentCtrl.checkStatus({ params }),
-        checkPaymentStatusValidation,
+      // Boss Only
+      .use(
+        new Elysia()
+          .use(requireRole(["boss"]))
+          // DELETE /payment/:id
+          .delete(
+            "/:id",
+            ({ params }: { params: { id: string } }) =>
+              paymentCtrl.delete({ params }),
+            deletePaymentValidation,
+          )
       )
-
-      // GET /payment/:id
-      .get(
-        "/:id",
-        ({ params }: { params: { id: string } }) =>
-          paymentCtrl.getById({ params }),
-        getPaymentByIdValidation,
-      )
-
-      // POST /payment (Buat pembayaran Cash / QRIS Midtrans)
-      .post(
-        "/",
-        ({ body }: { body: CreatePayment }) => paymentCtrl.create({ body }),
-        createPaymentValidation,
-      )
-
-      // PUT /payment/:id
-      .put(
-        "/:id",
-        ({ params, body }: { params: { id: string }; body: UpdatePayment }) =>
-          paymentCtrl.update({ params, body }),
-        updatePaymentValidation,
-      )
-
-      // DELETE /payment/:id
-      .delete(
-        "/:id",
-        ({ params }: { params: { id: string } }) =>
-          paymentCtrl.delete({ params }),
-        deletePaymentValidation,
-      ),
   );

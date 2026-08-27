@@ -1,5 +1,6 @@
 import { Elysia } from "elysia";
 import { authMiddleware } from "../../utils/auth/auth.middleware";
+import { requireRole } from "../../utils/auth/role.middleware";
 import { AnalyticsController } from "./analytics.controller";
 import { analyticsQueryValidation, topMenuQueryValidation } from "./analytics.validation";
 import type { DateRangeQuery } from "./analytics.type";
@@ -8,6 +9,7 @@ const ctrl = new AnalyticsController();
 
 export const analyticsRoute = new Elysia({ prefix: "/analytics" })
   .use(authMiddleware)
+  .use(requireRole(["boss"]))
 
   // GET /analytics/dashboard?period=week
   .get(

@@ -1,5 +1,6 @@
 import { Elysia } from "elysia";
 import { authMiddleware } from "../../utils/auth/auth.middleware";
+import { requireRole } from "../../utils/auth/role.middleware";
 import { BusinessAssistantController } from "./business_assistant.controller";
 import {
   createSessionValidation,
@@ -13,6 +14,7 @@ const ctrl = new BusinessAssistantController();
 
 export const businessAssistantRoute = new Elysia({ prefix: "/assistant" })
   .use(authMiddleware)
+  .use(requireRole(["boss"]))
 
   // GET /assistant?page=1&limit=10  ← list semua sesi
   .get(
