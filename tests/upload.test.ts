@@ -30,7 +30,7 @@ describe("Upload Module Validation & Static Serving", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = (await response.json()) as any;
     expect(json.name).toBe("hello.txt");
     expect(json.size).toBe(19);
     expect(json.type).toContain("text/plain");

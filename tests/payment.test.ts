@@ -159,7 +159,7 @@ describe("Midtrans QRIS Integration", () => {
     );
 
     expect(qrisResponse.status).toBe(200);
-    const qrisJson = await qrisResponse.json();
+    const qrisJson = (await qrisResponse.json()) as any;
     expect(qrisJson.body.method).toBe("qris");
     expect(qrisJson.body.orderId).toBe("65e1234567890abcdef12345");
 
@@ -207,7 +207,7 @@ describe("Midtrans QRIS Integration", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = (await response.json()) as any;
     expect(json.received).toBe(true);
     expect(json.orderId).toBe("ORDER-65e123-1720000000");
 
