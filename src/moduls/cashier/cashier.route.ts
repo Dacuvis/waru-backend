@@ -1,5 +1,5 @@
 import { Elysia } from "elysia";
-import { authMiddleware } from "../../utils/auth/auth.middleware";
+import { authMiddleware, type AuthUser } from "../../utils/auth/auth.middleware";
 import { requireRole } from "../../utils/auth/role.middleware";
 import { OrderController, PaymentController } from "./cashier.controller";
 import {
@@ -37,21 +37,23 @@ export const ordersRoute = new Elysia({ prefix: "/orders" })
       .use(requireRole(["customer", "cashier"]))
 
       // GET /orders?page=1&limit=10
-      .get("/", ({ query }: { query: { page?: string; limit?: string } }) =>
-        orderCtrl.getAll({ query }),
+      .get("/", ({ query, user }: { query: { page?: string; limit?: string }; user?: AuthUser }) =>
+        orderCtrl.getAll({ query, user }),
       )
 
       // GET /orders/:id
       .get(
         "/:id",
-        ({ params }: { params: { id: string } }) => orderCtrl.getById({ params }),
+        ({ params, user }: { params: { id: string }; user?: AuthUser }) =>
+          orderCtrl.getById({ params, user }),
         getOrderByIdValidation,
       )
 
       // POST /orders
       .post(
         "/",
-        ({ body }: { body: CreateOrder }) => orderCtrl.create({ body }),
+        ({ body, user }: { body: CreateOrder; user?: AuthUser }) =>
+          orderCtrl.create({ body, user }),
         createOrderValidation,
       ),
   )
@@ -120,30 +122,31 @@ export const paymentRoute = new Elysia({ prefix: "/payment" })
       .use(requireRole(["customer", "cashier"]))
 
       // GET /payment?page=1&limit=10
-      .get("/", ({ query }: { query: { page?: string; limit?: string } }) =>
-        paymentCtrl.getAll({ query }),
+      .get("/", ({ query, user }: { query: { page?: string; limit?: string }; user?: AuthUser }) =>
+        paymentCtrl.getAll({ query, user }),
       )
 
       // GET /payment/order/:orderId
       .get(
         "/order/:orderId",
-        ({ params }: { params: { orderId: string } }) =>
-          paymentCtrl.getByOrderId({ params }),
+        ({ params, user }: { params: { orderId: string }; user?: AuthUser }) =>
+          paymentCtrl.getByOrderId({ params, user }),
         getPaymentByOrderIdValidation,
       )
 
       // GET /payment/:id
       .get(
         "/:id",
-        ({ params }: { params: { id: string } }) =>
-          paymentCtrl.getById({ params }),
+        ({ params, user }: { params: { id: string }; user?: AuthUser }) =>
+          paymentCtrl.getById({ params, user }),
         getPaymentByIdValidation,
       )
 
       // POST /payment
       .post(
         "/",
-        ({ body }: { body: CreatePayment }) => paymentCtrl.create({ body }),
+        ({ body, user }: { body: CreatePayment; user?: AuthUser }) =>
+          paymentCtrl.create({ body, user }),
         createPaymentValidation,
       ),
   )

@@ -1,4 +1,5 @@
 import { OrderService, PaymentService } from "./cashier.service";
+import type { AuthUser } from "../../utils/auth/auth.middleware";
 import type {
   CreateOrder,
   UpdateOrder,
@@ -13,12 +14,12 @@ const paymentService = new PaymentService();
 // ─── Order Controller ──────────────────────────────────────────────────────
 
 export class OrderController {
-  async getAll({ query }: { query: { page?: string; limit?: string } }) {
-    return await orderService.getAll(query);
+  async getAll({ query, user }: { query: { page?: string; limit?: string }; user?: AuthUser }) {
+    return await orderService.getAll(query, user);
   }
 
-  async getById({ params }: { params: { id: string } }) {
-    return await orderService.getById(params.id);
+  async getById({ params, user }: { params: { id: string }; user?: AuthUser }) {
+    return await orderService.getById(params.id, user);
   }
 
   async getByStatus({
@@ -31,8 +32,8 @@ export class OrderController {
     return await orderService.getByStatus(params.status, query);
   }
 
-  async create({ body }: { body: CreateOrder }) {
-    return await orderService.create(body);
+  async create({ body, user }: { body: CreateOrder; user?: AuthUser }) {
+    return await orderService.create(body, user);
   }
 
   async update({ params, body }: { params: { id: string }; body: UpdateOrder }) {
@@ -47,20 +48,20 @@ export class OrderController {
 // ─── Payment Controller ───────────────────────────────────────────────────
 
 export class PaymentController {
-  async getAll({ query }: { query: { page?: string; limit?: string } }) {
-    return await paymentService.getAll(query);
+  async getAll({ query, user }: { query: { page?: string; limit?: string }; user?: AuthUser }) {
+    return await paymentService.getAll(query, user);
   }
 
-  async getById({ params }: { params: { id: string } }) {
-    return await paymentService.getById(params.id);
+  async getById({ params, user }: { params: { id: string }; user?: AuthUser }) {
+    return await paymentService.getById(params.id, user);
   }
 
-  async getByOrderId({ params }: { params: { orderId: string } }) {
-    return await paymentService.getByOrderId(params.orderId);
+  async getByOrderId({ params, user }: { params: { orderId: string }; user?: AuthUser }) {
+    return await paymentService.getByOrderId(params.orderId, user);
   }
 
-  async create({ body }: { body: CreatePayment }) {
-    return await paymentService.create(body);
+  async create({ body, user }: { body: CreatePayment; user?: AuthUser }) {
+    return await paymentService.create(body, user);
   }
 
   async update({ params, body }: { params: { id: string }; body: UpdatePayment }) {

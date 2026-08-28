@@ -7,12 +7,17 @@ import type { Order, UpdateOrder, Payment, UpdatePayment } from "./cashier.type"
 export class OrderModel {
   private collection = db.collection("orders");
 
-  async getAll(skip: number, limit: number) {
+  async getAll(skip: number, limit: number, filter: Record<string, any> = {}) {
     const [data, total] = await Promise.all([
-      this.collection.find().sort({ createdAt: -1 }).skip(skip).limit(limit).toArray(),
-      this.collection.countDocuments(),
+      this.collection.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray(),
+      this.collection.countDocuments(filter),
     ]);
     return { data, total };
+  }
+
+  async getAllUserOrderIds(customerId: string): Promise<string[]> {
+    const orders = await this.collection.find({ customerId }, { projection: { _id: 1 } }).toArray();
+    return orders.map((o) => o._id.toString());
   }
 
   async getById(id: string) {
@@ -68,10 +73,10 @@ export class PaymentModel {
     ),
   ]);
 
-  async getAll(skip: number, limit: number) {
+  async getAll(skip: number, limit: number, filter: Record<string, any> = {}) {
     const [data, total] = await Promise.all([
-      this.collection.find().sort({ createdAt: -1 }).skip(skip).limit(limit).toArray(),
-      this.collection.countDocuments(),
+      this.collection.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray(),
+      this.collection.countDocuments(filter),
     ]);
     return { data, total };
   }

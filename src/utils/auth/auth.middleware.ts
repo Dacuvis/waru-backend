@@ -3,6 +3,13 @@ import { jwtPlugin } from "../jwt/jwt.plugin";
 import { AppError } from "../error/error-global-handler";
 import { TOKEN_COOKIE_NAME } from "../cookies/cookies";
 
+export interface AuthUser {
+  id?: string;
+  email?: string;
+  role?: string;
+  [key: string]: any;
+}
+
 /**
  * Auth Middleware untuk Waru Backend menggunakan @elysia/jwt.
  *

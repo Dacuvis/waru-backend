@@ -1,6 +1,8 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysia/cors";
 
+import { serveSafeStaticFile } from "./tests/safe-static-file";
+
 // ── Utils ────────────────────────────────────────────────────────────────────
 import { globalErrorHandler, buildErrorResponse } from "./src/utils/error/error-global-handler";
 import { swaggerConfig } from "./src/utils/swagger";
@@ -62,24 +64,8 @@ const app = new Elysia()
   .onError(({ error, set, code }) => globalErrorHandler({ error, set, code }))
 
   // ── Static Files (Public Assets) ──────────────────────────────────────────
-  .get("/public/*", async ({ params, set }) => {
-    const filePath = `public/${params["*"]}`;
-    const file = Bun.file(filePath);
-    if (!(await file.exists())) {
-      set.status = 404;
-      return buildErrorResponse(404, "File tidak ditemukan.", "E30");
-    }
-    return file;
-  })
-  .get("/uploads/*", async ({ params, set }) => {
-    const filePath = `public/uploads/${params["*"]}`;
-    const file = Bun.file(filePath);
-    if (!(await file.exists())) {
-      set.status = 404;
-      return buildErrorResponse(404, "File tidak ditemukan.", "E30");
-    }
-    return file;
-  })
+  .get("/public/*", ({ params, set }) => serveSafeStaticFile("public", params["*"], set))
+  .get("/uploads/*", ({ params, set }) => serveSafeStaticFile("public/uploads", params["*"], set))
 
   // ── Public routes (tidak perlu token) ───────────────────────────────────
   .use(registerRoute)   // POST /auth/register

@@ -17,8 +17,14 @@ export class MenuModel {
     return { data, total };
   }
 
-  async findById(id: ObjectId) {
-    if (!ObjectId.isValid(id)) return null;
+  async findById(id: ObjectId | string) {
+    if (typeof id === "string") {
+      if (ObjectId.isValid(id)) {
+        const found = await this.collection.findOne({ _id: new ObjectId(id) });
+        if (found) return found;
+      }
+      return await this.collection.findOne({ _id: id as any });
+    }
     return await this.collection.findOne({ _id: id });
   }
 

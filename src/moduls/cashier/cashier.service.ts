@@ -7,6 +7,8 @@ import {
   type PaginationQuery,
 } from "../../utils/pagination/pagination";
 import { OrderModel, PaymentModel } from "./cashier.model";
+import { MenuModel } from "../menu/menu.model";
+import type { AuthUser } from "../../utils/auth/auth.middleware";
 import type {
   CreateOrder,
   UpdateOrder,
@@ -22,18 +24,27 @@ import type {
 export class OrderService {
   private model = new OrderModel();
   private paymentModel = new PaymentModel();
+  private menuModel = new MenuModel();
 
-  async getAll(query: PaginationQuery) {
+  async getAll(query: PaginationQuery, user?: AuthUser) {
     const { page, limit, skip } = parsePagination(query);
     logger.info({ page, limit }, "Mengambil daftar orders");
 
-    const { data, total } = await this.model.getAll(skip, limit);
+    const filter: Record<string, any> = {};
+    if (user?.role === "customer" && user?.id) {
+      filter.customerId = user.id;
+    }
+
+    const { data, total } = await this.model.getAll(skip, limit, filter);
     return buildPaginationResult(data, total, page, limit);
   }
 
-  async getById(id: string) {
+  async getById(id: string, user?: AuthUser) {
     const order = await this.model.getById(id);
     if (!order) throw new AppError(`Order dengan id ${id} tidak ditemukan`, 404, "E30");
+    if (user?.role === "customer" && user?.id && (order as any).customerId !== user.id) {
+      throw new AppError(`Order dengan id ${id} tidak ditemukan`, 404, "E30");
+    }
     logger.info({ orderId: id }, "Mengambil order by id");
     return order;
   }
@@ -49,17 +60,33 @@ export class OrderService {
     return buildPaginationResult(data, total, page, limit);
   }
 
-  async create(data: CreateOrder) {
-    // Hitung subtotal tiap item dan total order
-    const items = data.items.map((item) => ({
-      ...item,
-      subtotal: item.price * item.quantity,
-    }));
+  async create(data: CreateOrder, user?: AuthUser) {
+    // Ambil harga resmi tiap menu dari DB menu (SEC-CRIT-002)
+    const items = await Promise.all(
+      data.items.map(async (item) => {
+        const menuItem = await this.menuModel.findById(item.menuId);
+        if (!menuItem) {
+          throw new AppError(`Menu dengan id '${item.menuId}' tidak ditemukan`, 404, "E30");
+        }
+        const price = (menuItem as any).price;
+        const subtotal = price * item.quantity;
+        return {
+          menuId: item.menuId,
+          name: (menuItem as any).name || item.name,
+          quantity: item.quantity,
+          price,
+          subtotal,
+        };
+      }),
+    );
     const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
 
+    // customerId HARUS berasal dari authenticated user (JWT), bukan request body
+    const customerId = user?.id;
     const now = new Date();
     const order = {
       ...data,
+      customerId,
       items,
       totalAmount,
       status: "pending" as const,
@@ -68,7 +95,7 @@ export class OrderService {
     };
 
     const result = await this.model.create(order);
-    logger.info({ orderId: result.insertedId, totalAmount }, "Order baru dibuat");
+    logger.info({ orderId: result.insertedId, totalAmount, customerId }, "Order baru dibuat");
     return result;
   }
 
@@ -81,12 +108,25 @@ export class OrderService {
       updatedAt: new Date(),
     };
 
-    // Recalculate total jika items diubah
+    // Recalculate total dari database harga jika items diubah
     if (data.items) {
-      const items = data.items.map((item) => ({
-        ...item,
-        subtotal: item.price * item.quantity,
-      }));
+      const items = await Promise.all(
+        data.items.map(async (item) => {
+          const menuItem = await this.menuModel.findById(item.menuId);
+          if (!menuItem) {
+            throw new AppError(`Menu dengan id '${item.menuId}' tidak ditemukan`, 404, "E30");
+          }
+          const price = (menuItem as any).price;
+          const subtotal = price * item.quantity;
+          return {
+            menuId: item.menuId,
+            name: (menuItem as any).name || item.name,
+            quantity: item.quantity,
+            price,
+            subtotal,
+          };
+        }),
+      );
       updateData.items = items;
       updateData.totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
     }
@@ -122,22 +162,43 @@ export class PaymentService {
   private model = new PaymentModel();
   private orderModel = new OrderModel();
 
-  async getAll(query: PaginationQuery) {
+  async getAll(query: PaginationQuery, user?: AuthUser) {
     const { page, limit, skip } = parsePagination(query);
     logger.info({ page, limit }, "Mengambil daftar payments");
 
-    const { data, total } = await this.model.getAll(skip, limit);
+    let filter: Record<string, any> = {};
+    if (user?.role === "customer" && user?.id) {
+      const userOrderIds = await this.orderModel.getAllUserOrderIds(user.id);
+      filter = { orderId: { $in: userOrderIds } };
+    }
+
+    const { data, total } = await this.model.getAll(skip, limit, filter);
     return buildPaginationResult(data, total, page, limit);
   }
 
-  async getById(id: string) {
+  async getById(id: string, user?: AuthUser) {
     const payment = await this.model.getById(id);
     if (!payment) throw new AppError(`Payment dengan id ${id} tidak ditemukan`, 404, "E30");
+
+    if (user?.role === "customer" && user?.id) {
+      const order = await this.orderModel.getById((payment as any).orderId);
+      if (!order || (order as any).customerId !== user.id) {
+        throw new AppError(`Payment dengan id ${id} tidak ditemukan`, 404, "E30");
+      }
+    }
+
     logger.info({ paymentId: id }, "Mengambil payment by id");
     return payment;
   }
 
-  async getByOrderId(orderId: string) {
+  async getByOrderId(orderId: string, user?: AuthUser) {
+    if (user?.role === "customer" && user?.id) {
+      const order = await this.orderModel.getById(orderId);
+      if (!order || (order as any).customerId !== user.id) {
+        throw new AppError(`Payment untuk order id ${orderId} tidak ditemukan`, 404, "E30");
+      }
+    }
+
     const payment = await this.model.getByOrderId(orderId);
     if (!payment) throw new AppError(`Payment untuk order id ${orderId} tidak ditemukan`, 404, "E30");
     return payment;
@@ -146,10 +207,14 @@ export class PaymentService {
   /**
    * Membuat transaksi pembayaran (Cash / QRIS via Midtrans)
    */
-  async create(data: CreatePayment) {
+  async create(data: CreatePayment, user?: AuthUser) {
     // 1. Validasi keberadaan order
     const order = await this.orderModel.getById(data.orderId);
     if (!order) {
+      throw new AppError(`Order dengan id ${data.orderId} tidak ditemukan`, 404, "E30");
+    }
+
+    if (user?.role === "customer" && user?.id && (order as any).customerId !== user.id) {
       throw new AppError(`Order dengan id ${data.orderId} tidak ditemukan`, 404, "E30");
     }
 

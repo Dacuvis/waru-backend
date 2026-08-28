@@ -14,6 +14,7 @@ export interface OrderItem {
 
 export interface Order {
   _id?: ObjectId;
+  customerId?: string;
   tableNumber: number;
   customerName?: string;
   items: OrderItem[];
@@ -25,6 +26,7 @@ export interface Order {
 }
 
 export interface CreateOrder {
+  customerId?: string;
   tableNumber: number;
   customerName?: string;
   items: Omit<OrderItem, "subtotal">[];
