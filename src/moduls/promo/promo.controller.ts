@@ -1,9 +1,9 @@
-import { ReviewService } from "../review/review.service";
-import type { CreateReview, UpdateReview } from "../review/review.type";
+import { PromoService } from "./promo.service";
+import type { CreatePromo, UpdatePromo, ApplyPromo } from "./promo.type";
 
-const service = new ReviewService();
+const service = new PromoService();
 
-export class ReviewController {
+export class PromoController {
   async getAll({ query }: { query: { page?: string; limit?: string } }) {
     return await service.getAll(query);
   }
@@ -12,34 +12,20 @@ export class ReviewController {
     return await service.getById(params.id);
   }
 
-  async getPublished({ query }: { query: { page?: string; limit?: string } }) {
-    return await service.getPublished(query);
+  async getActive({ query }: { query: { page?: string; limit?: string } }) {
+    return await service.getActive(query);
   }
 
-  async getByTarget({
-    params,
-    query,
-  }: {
-    params: { target: string };
-    query: { page?: string; limit?: string; targetId?: string };
-  }) {
-    return await service.getByTarget(params.target, query);
+  async create({ body }: { body: CreatePromo }) {
+    return await service.create(body);
   }
 
-  async getAverageRating({
-    query,
-  }: {
-    query: { target?: string; targetId?: string };
-  }) {
-    return await service.getAverageRating(query);
-  }
-
-  async create({ body, user }: { body: CreateReview; user?: any }) {
-    return await service.create(body, user);
-  }
-
-  async update({ params, body }: { params: { id: string }; body: UpdateReview }) {
+  async update({ params, body }: { params: { id: string }; body: UpdatePromo }) {
     return await service.update(params.id, body);
+  }
+
+  async applyPromo({ body }: { body: ApplyPromo }) {
+    return await service.applyPromo(body);
   }
 
   async delete({ params }: { params: { id: string } }) {
