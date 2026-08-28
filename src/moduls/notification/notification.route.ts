@@ -1,5 +1,5 @@
 import { Elysia } from "elysia";
-import { authMiddleware } from "../../utils/auth/auth.middleware";
+import { authMiddleware, type AuthUser } from "../../utils/auth/auth.middleware";
 import { requireRole } from "../../utils/auth/role.middleware";
 import { NotificationController } from "./notification.controller";
 import {
@@ -20,11 +20,11 @@ export const notificationRoute = new Elysia({ prefix: "/notification" })
     new Elysia()
       .use(requireRole(["customer"]))
       // GET /notification?page=1&limit=10
-      .get("/", ({ query }: { query: { page?: string; limit?: string } }) => ctrl.getAll({ query }))
+      .get("/", ({ query, user }: { query: { page?: string; limit?: string }; user?: AuthUser }) => ctrl.getAll({ query, user }))
       // PATCH /notification/read-all?target=kitchen  ← tandai semua sudah dibaca
       .patch(
         "/read-all",
-        ({ query }: { query: { target?: string } }) => ctrl.markAllRead({ query }),
+        ({ query, user }: { query: { target?: string }; user?: AuthUser }) => ctrl.markAllRead({ query, user }),
       )
   )
 
@@ -35,8 +35,8 @@ export const notificationRoute = new Elysia({ prefix: "/notification" })
       // GET /notification/unread?target=kitchen&page=1
       .get(
         "/unread",
-        ({ query }: { query: { page?: string; limit?: string; target?: string } }) =>
-          ctrl.getUnread({ query }),
+        ({ query, user }: { query: { page?: string; limit?: string; target?: string }; user?: AuthUser }) =>
+          ctrl.getUnread({ query, user }),
       )
   )
 
@@ -50,34 +50,36 @@ export const notificationRoute = new Elysia({ prefix: "/notification" })
         ({
           params,
           query,
+          user,
         }: {
           params: { target: string };
           query: { page?: string; limit?: string };
-        }) => ctrl.getByTarget({ params, query }),
+          user?: AuthUser;
+        }) => ctrl.getByTarget({ params, query, user }),
       )
       // GET /notification/:id
       .get(
         "/:id",
-        ({ params }: { params: { id: string } }) => ctrl.getById({ params }),
+        ({ params, user }: { params: { id: string }; user?: AuthUser }) => ctrl.getById({ params, user }),
         getNotificationByIdValidation,
       )
       // POST /notification
       .post(
         "/",
-        ({ body }: { body: CreateNotification }) => ctrl.create({ body }),
+        ({ body, user }: { body: CreateNotification; user?: AuthUser }) => ctrl.create({ body, user }),
         createNotificationValidation,
       )
       // PUT /notification/:id
       .put(
         "/:id",
-        ({ params, body }: { params: { id: string }; body: UpdateNotification }) =>
-          ctrl.update({ params, body }),
+        ({ params, body, user }: { params: { id: string }; body: UpdateNotification; user?: AuthUser }) =>
+          ctrl.update({ params, body, user }),
         updateNotificationValidation,
       )
       // DELETE /notification/:id
       .delete(
         "/:id",
-        ({ params }: { params: { id: string } }) => ctrl.delete({ params }),
+        ({ params, user }: { params: { id: string }; user?: AuthUser }) => ctrl.delete({ params, user }),
         deleteNotificationValidation,
       )
   );
