@@ -14,6 +14,7 @@ export const createOrderValidation = {
     tableNumber: t.Number({ minimum: 1, error: "Nomor meja minimal 1" }),
     customerName: t.Optional(t.String()),
     items: t.Array(orderItemSchema, { minItems: 1, error: "Minimal 1 item pesanan" }),
+    promoCode: t.Optional(t.String()),
     notes: t.Optional(t.String()),
   }),
 };

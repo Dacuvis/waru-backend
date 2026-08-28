@@ -139,11 +139,7 @@ export class PromoService {
 
     const finalTotal = data.orderTotal - discountAmount;
 
-    // Tambah usage count
-    const consumed = await this.model.consumeUsage(String(promoData._id), now);
-    if (!consumed) {
-      throw new AppError("Promo sudah tidak aktif atau kuotanya baru saja habis", 409, "E40");
-    }
+
 
     logger.info(
       { promoCode: data.code, discountAmount, finalTotal },
@@ -166,5 +162,14 @@ export class PromoService {
     const deleted = await this.model.delete(id);
     logger.info({ promoId: id }, "Promo dihapus");
     return deleted;
+  }
+
+  async consumeUsage(code: string) {
+    const consumed = await this.model.consumeUsageByCode(code, new Date());
+    if (!consumed) {
+      throw new AppError("Promo sudah tidak aktif atau kuotanya habis", 409, "E40");
+    }
+    logger.info({ promoCode: code }, "Kuota promo berhasil dikonsumsi");
+    return consumed;
   }
 }

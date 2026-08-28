@@ -48,7 +48,7 @@ export const reviewRoute = new Elysia({ prefix: "/review" })
           // POST /review
           .post(
             "/",
-            ({ body }: { body: CreateReview }) => ctrl.create({ body }),
+            ({ body, user }: { body: CreateReview; user?: any }) => ctrl.create({ body, user }),
             createReviewValidation,
           )
       )

@@ -19,6 +19,9 @@ export interface Order {
   customerName?: string;
   items: OrderItem[];
   totalAmount: number;
+  promoCode?: string;
+  discountAmount?: number;
+  finalAmount?: number;
   status: OrderStatus;
   notes?: string;
   createdAt: Date;
@@ -30,6 +33,7 @@ export interface CreateOrder {
   tableNumber: number;
   customerName?: string;
   items: Omit<OrderItem, "subtotal">[];
+  promoCode?: string;
   notes?: string;
 }
 

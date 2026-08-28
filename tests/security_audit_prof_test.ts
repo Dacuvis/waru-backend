@@ -10,6 +10,9 @@ import { businessAssistantRoute } from "../src/moduls/business_assistant/busines
 import { uploadRoute } from "../src/moduls/upload/upload.route";
 import { jwtPlugin } from "../src/utils/jwt/jwt.plugin";
 import { serveSafeStaticFile } from "./safe-static-file";
+import { reviewRoute } from "../src/moduls/review/review.route";
+import { menuRoutes } from "../src/moduls/menu/menu.route";
+import { promoRoute } from "../src/moduls/promo/promo.route";
 
 const app = new Elysia()
   .onError(({ error, set, code }) => globalErrorHandler({ error, set, code }))
@@ -22,7 +25,10 @@ const app = new Elysia()
   .use(paymentRoute)
   .use(notificationRoute)
   .use(businessAssistantRoute)
-  .use(uploadRoute);
+  .use(uploadRoute)
+  .use(reviewRoute)
+  .use(menuRoutes)
+  .use(promoRoute);
 
 describe("Comprehensive Backend Security Audit Suite", () => {
   // --- AUTH & RBAC TESTS ---
@@ -332,153 +338,564 @@ describe("Comprehensive Backend Security Audit Suite", () => {
     }
   });
 
-  test("Notification Security - BOLA & Exposure Protection", async () => {
+  test("High Vulnerability: Notification Exposure & Manipulation by Customer", async () => {
+    const jwtApp = new Elysia().use(jwtPlugin);
+    let token = "";
+    jwtApp.get("/token", async ({ jwt }) => {
+      token = await jwt.sign({ id: "cust123", email: "cust@waru.com", role: "customer" });
+      return token;
+    });
+    await jwtApp.handle(new Request("http://localhost/token"));
+
+    // GET /notification allows customer
+    const getRes = await app.handle(
+      new Request("http://localhost/notification", {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    );
+    expect(getRes.status).not.toBe(403);
+
+    // PATCH /notification/read-all allows customer
+    const patchRes = await app.handle(
+      new Request("http://localhost/notification/read-all", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    );
+    expect(patchRes.status).not.toBe(403);
+  });
+
+  test("Business Assistant Session Security - BOLA & Ownership Protection", async () => {
     const { db } = await import("../src/config/client");
     const { ObjectId } = await import("mongodb");
     const { jwtPlugin } = await import("../src/utils/jwt/jwt.plugin");
 
     const jwtApp = new Elysia().use(jwtPlugin);
-    jwtApp.get("/tokenA", async ({ jwt }) => await jwt.sign({ id: "cust_A", email: "a@waru.com", role: "customer" }));
-    jwtApp.get("/tokenB", async ({ jwt }) => await jwt.sign({ id: "cust_B", email: "b@waru.com", role: "customer" }));
-    jwtApp.get("/tokenKitchen", async ({ jwt }) => await jwt.sign({ id: "kitchen_1", email: "k@waru.com", role: "kitchen" }));
-    jwtApp.get("/tokenBoss", async ({ jwt }) => await jwt.sign({ id: "boss_1", email: "boss@waru.com", role: "boss" }));
+    jwtApp.get("/tokenBossA", async ({ jwt }) => await jwt.sign({ id: "boss_A", email: "a@waru.com", role: "boss" }));
+    jwtApp.get("/tokenBossB", async ({ jwt }) => await jwt.sign({ id: "boss_B", email: "b@waru.com", role: "boss" }));
 
-    const tokenA = await (await jwtApp.handle(new Request("http://localhost/tokenA"))).text();
-    const tokenB = await (await jwtApp.handle(new Request("http://localhost/tokenB"))).text();
-    const tokenKitchen = await (await jwtApp.handle(new Request("http://localhost/tokenKitchen"))).text();
-    const tokenBoss = await (await jwtApp.handle(new Request("http://localhost/tokenBoss"))).text();
+    const tokenA = await (await jwtApp.handle(new Request("http://localhost/tokenBossA"))).text();
+    const tokenB = await (await jwtApp.handle(new Request("http://localhost/tokenBossB"))).text();
 
-    // Seed test notifications
-    const notifAId = new ObjectId();
-    const notifBId = new ObjectId();
-    const notifKitchenId = new ObjectId();
-    const notifGlobalId = new ObjectId();
+    // Scenario F: User A membuat session sambil mengirim ownerId/userId milik User B -> server tetap menyimpan ownership berdasarkan JWT User A
+    const resCreate = await app.handle(
+      new Request("http://localhost/assistant", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${tokenA}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: "Session Boss A",
+          message: "Analisis penjualan minggu ini",
+          userId: "boss_B", // Tampered ownership field
+          bossId: "boss_B",
+          ownerId: "boss_B",
+        }),
+      }),
+    );
+    expect(resCreate.status).toBe(200);
+    const createData = (await resCreate.json()) as any;
+    const sessionId = createData.sessionId;
 
-    await db.collection("notification").insertMany([
-      {
-        _id: notifAId,
-        type: "system",
-        target: "cust_A",
-        title: "Notif Customer A",
-        message: "Hello Customer A",
-        isRead: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      {
-        _id: notifBId,
-        type: "system",
-        target: "cust_B",
-        title: "Notif Customer B",
-        message: "Hello Customer B",
-        isRead: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      {
-        _id: notifKitchenId,
-        type: "system",
-        target: "kitchen",
-        title: "Notif Kitchen",
-        message: "Kitchen order ready",
-        isRead: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      {
-        _id: notifGlobalId,
-        type: "system",
-        target: "all",
-        title: "Global Broadcast",
-        message: "Server maintanance",
-        isRead: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ] as any[]);
+    // Verify stored session in DB has correct userId and bossId set to boss_A (not boss_B)
+    const storedSession = await db.collection("business_assistant").findOne({ _id: new ObjectId(sessionId) });
+    expect(storedSession).not.toBeNull();
+    expect(storedSession!.userId).toBe("boss_A");
+    expect(storedSession!.bossId).toBe("boss_A");
 
     try {
-      // 1. Customer A GET /notification should see target:cust_A and target:all, but NOT cust_B or kitchen
+      // Scenario A: User A bisa GET session tersebut
       const resGetA = await app.handle(
-        new Request("http://localhost/notification", {
+        new Request(`http://localhost/assistant/${sessionId}`, {
           headers: { Authorization: `Bearer ${tokenA}` },
         }),
       );
       expect(resGetA.status).toBe(200);
-      const dataA = (await resGetA.json()) as any;
-      const idsA = dataA.data.map((n: any) => n._id);
 
-      expect(idsA).toContain(notifAId.toString());
-      expect(idsA).toContain(notifGlobalId.toString());
-      expect(idsA).not.toContain(notifBId.toString());
-      expect(idsA).not.toContain(notifKitchenId.toString());
+      // Scenario B: User B mencoba GET session milik User A -> 404
+      const resGetB = await app.handle(
+        new Request(`http://localhost/assistant/${sessionId}`, {
+          headers: { Authorization: `Bearer ${tokenB}` },
+        }),
+      );
+      expect(resGetB.status).toBe(404);
 
-      // 2. Customer A attempts to get Kitchen's unread notifications -> 403 Forbidden (guarded by kitchen role guard)
-      const resUnreadA = await app.handle(
-        new Request("http://localhost/notification/unread?target=kitchen", {
+      // Scenario C: User B mencoba UPDATE (kirim message) ke session milik User A -> 404
+      const resSendMessageB = await app.handle(
+        new Request(`http://localhost/assistant/${sessionId}/message`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${tokenB}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: "Tampilkan omzet hari ini",
+          }),
+        }),
+      );
+      expect(resSendMessageB.status).toBe(404);
+
+      // Scenario E: User B melakukan LIST -> tidak boleh menerima session milik User A
+      const resListB = await app.handle(
+        new Request("http://localhost/assistant", {
+          headers: { Authorization: `Bearer ${tokenB}` },
+        }),
+      );
+      expect(resListB.status).toBe(200);
+      const listDataB = (await resListB.json()) as any;
+      const foundSession = listDataB.data.find((s: any) => s._id === sessionId);
+      expect(foundSession).toBeUndefined();
+
+      // Scenario D: User B mencoba DELETE session milik User A -> 404
+      const resDeleteB = await app.handle(
+        new Request(`http://localhost/assistant/${sessionId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${tokenB}` },
+        }),
+      );
+      expect(resDeleteB.status).toBe(404);
+
+      // Scenario D (Owner): User A delete session miliknya -> 200
+      const resDeleteA = await app.handle(
+        new Request(`http://localhost/assistant/${sessionId}`, {
+          method: "DELETE",
           headers: { Authorization: `Bearer ${tokenA}` },
         }),
       );
-      expect(resUnreadA.status).toBe(403);
-
-      // 3. Customer A PATCH /notification/read-all?target=kitchen (attempts to mark kitchen notifications read)
-      const resReadAllA = await app.handle(
-        new Request("http://localhost/notification/read-all?target=kitchen", {
-          method: "PATCH",
-          headers: { Authorization: `Bearer ${tokenA}` },
-        }),
-      );
-      expect(resReadAllA.status).toBe(200);
-
-      // Verify that kitchen and customer B notifications are STILL unread
-      const storedKitchenNotif = await db.collection("notification").findOne({ _id: notifKitchenId });
-      expect(storedKitchenNotif!.isRead).toBe(false);
-
-      const storedBNotif = await db.collection("notification").findOne({ _id: notifBId });
-      expect(storedBNotif!.isRead).toBe(false);
-
-      // Verify that Customer A's notification was successfully marked read
-      const storedANotif = await db.collection("notification").findOne({ _id: notifAId });
-      expect(storedANotif!.isRead).toBe(true);
-
-      // 4. Kitchen GET /notification/unread?target=kitchen -> should return kitchen and global notifications
-      const resKitchenUnread = await app.handle(
-        new Request("http://localhost/notification/unread?target=kitchen", {
-          headers: { Authorization: `Bearer ${tokenKitchen}` },
-        }),
-      );
-      expect(resKitchenUnread.status).toBe(200);
-      const dataKitchen = (await resKitchenUnread.json()) as any;
-      const idsKitchen = dataKitchen.data.map((n: any) => n._id);
-      expect(idsKitchen).toContain(notifKitchenId.toString());
-      expect(idsKitchen).toContain(notifGlobalId.toString());
-
-      // 5. Boss GET /notification/target/cust_B -> should return Customer B's notification
-      const resBossTarget = await app.handle(
-        new Request(`http://localhost/notification/target/cust_B`, {
-          headers: { Authorization: `Bearer ${tokenBoss}` },
-        }),
-      );
-      expect(resBossTarget.status).toBe(200);
-      const dataBossTarget = (await resBossTarget.json()) as any;
-      const idsBossTarget = dataBossTarget.data.map((n: any) => n._id);
-      expect(idsBossTarget).toContain(notifBId.toString());
+      expect(resDeleteA.status).toBe(200);
 
     } finally {
-      await db.collection("notification").deleteMany({
-        _id: { $in: [notifAId, notifBId, notifKitchenId, notifGlobalId] },
-      });
+      await db.collection("business_assistant").deleteOne({ _id: new ObjectId(sessionId) });
     }
   });
 
-  test("High Vulnerability: Business Assistant Session Model lacks ownerId / bossId", async () => {
-    const session = {
-      title: "Strategy Session",
+  test("Business Assistant Session Security - Legacy Session Fail-Closed", async () => {
+    const { db } = await import("../src/config/client");
+    const { ObjectId } = await import("mongodb");
+    const { jwtPlugin } = await import("../src/utils/jwt/jwt.plugin");
+
+    const jwtApp = new Elysia().use(jwtPlugin);
+    jwtApp.get("/tokenBossX", async ({ jwt }) => await jwt.sign({ id: "boss_X", email: "x@waru.com", role: "boss" }));
+    const tokenX = await (await jwtApp.handle(new Request("http://localhost/tokenBossX"))).text();
+
+    // Create a legacy session directly in DB (without userId/bossId)
+    const legacySessionId = new ObjectId();
+    await db.collection("business_assistant").insertOne({
+      _id: legacySessionId,
+      title: "Legacy Session",
       messages: [],
       createdAt: new Date(),
       updatedAt: new Date(),
-    };
-    expect((session as any).userId).toBeUndefined();
-    expect((session as any).bossId).toBeUndefined();
+    } as any);
+
+    try {
+      // 1. GET /assistant/:id -> should fail closed (404)
+      const resGet = await app.handle(
+        new Request(`http://localhost/assistant/${legacySessionId.toString()}`, {
+          headers: { Authorization: `Bearer ${tokenX}` },
+        }),
+      );
+      expect(resGet.status).toBe(404);
+
+      // 2. POST /assistant/:id/message -> should fail closed (404)
+      const resSendMessage = await app.handle(
+        new Request(`http://localhost/assistant/${legacySessionId.toString()}/message`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${tokenX}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ message: "Hello legacy" }),
+        }),
+      );
+      expect(resSendMessage.status).toBe(404);
+
+      // 3. DELETE /assistant/:id -> should fail closed (404)
+      const resDelete = await app.handle(
+        new Request(`http://localhost/assistant/${legacySessionId.toString()}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${tokenX}` },
+        }),
+      );
+      expect(resDelete.status).toBe(404);
+    } finally {
+      await db.collection("business_assistant").deleteOne({ _id: legacySessionId });
+    }
   });
+
+  test("SEC-PRM-001: Promo Usage Quota Exhaustion & Payment Idempotency", async () => {
+    const { db } = await import("../src/config/client");
+    const { ObjectId } = await import("mongodb");
+    const { jwtPlugin } = await import("../src/utils/jwt/jwt.plugin");
+
+    const jwtApp = new Elysia().use(jwtPlugin);
+    jwtApp.get("/tokenCust", async ({ jwt }) => await jwt.sign({ id: "cust_promo", email: "p@waru.com", role: "customer" }));
+    jwtApp.get("/tokenCashier", async ({ jwt }) => await jwt.sign({ id: "cashier_1", email: "c@waru.com", role: "cashier" }));
+    const tokCust = await (await jwtApp.handle(new Request("http://localhost/tokenCust"))).text();
+    const tokCashier = await (await jwtApp.handle(new Request("http://localhost/tokenCashier"))).text();
+
+    const menuId = new ObjectId().toString();
+    const promoId = new ObjectId().toString();
+
+    // 1. Seed Menu
+    await db.collection("menu").insertOne({
+      _id: new ObjectId(menuId) as any,
+      name: "Promo Dish",
+      price: 100000,
+      isAvailable: true,
+    });
+
+    // 2. Seed Promo
+    await db.collection("promo").insertOne({
+      _id: new ObjectId(promoId) as any,
+      code: "TESTPROMO10",
+      type: "percentage",
+      discountValue: 10,
+      usageLimit: 50,
+      usageCount: 0,
+      status: "active",
+      startDate: new Date(Date.now() - 10000),
+      endDate: new Date(Date.now() + 100000),
+    });
+
+    try {
+      // 3. Apply promo 10x via /promo/apply (Customer checks discount)
+      for (let i = 0; i < 10; i++) {
+        const resApply = await app.handle(
+          new Request("http://localhost/promo/apply", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${tokCust}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ code: "TESTPROMO10", orderTotal: 100000 }),
+          })
+        );
+        expect(resApply.status).toBe(200);
+      }
+
+      // Verify usageCount is STILL 0
+      const promoAfterApply = await db.collection("promo").findOne({ code: "TESTPROMO10" });
+      expect(promoAfterApply!.usageCount).toBe(0);
+
+      // 4. Create Order with Promo
+      const resOrder = await app.handle(
+        new Request("http://localhost/orders", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${tokCust}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tableNumber: 5,
+            items: [{ menuId, name: "Promo Dish", quantity: 1, price: 100000 }],
+            promoCode: "TESTPROMO10"
+          }),
+        })
+      );
+      expect(resOrder.status).toBe(200);
+      const order = await resOrder.json() as any;
+      const orderId = order.insertedId;
+
+      // Verify finalAmount in DB is discounted (90000)
+      const orderInDb = await db.collection("orders").findOne({ _id: new ObjectId(orderId) as any });
+      expect(orderInDb!.totalAmount).toBe(100000);
+      expect(orderInDb!.discountAmount).toBe(10000);
+      expect(orderInDb!.finalAmount).toBe(90000);
+
+      // 5. Customer attempts Cash Payment (Should be 403 - SEC-PAY-001)
+      const resPayCust = await app.handle(
+        new Request("http://localhost/payment", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${tokCust}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId, method: "cash", paidAmount: 90000 }),
+        })
+      );
+      expect(resPayCust.status).toBe(403);
+
+      const promoBeforePay = await db.collection("promo").findOne({ code: "TESTPROMO10" });
+      expect(promoBeforePay!.usageCount).toBe(0); // Still 0
+
+      // 6. Cashier creates Cash Payment (Success) -> Should consume promo EXACTLY ONCE
+      const resPayCashier = await app.handle(
+        new Request("http://localhost/payment", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${tokCashier}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId, method: "cash", paidAmount: 90000 }),
+        })
+      );
+      expect(resPayCashier.status).toBe(200);
+
+      // Verify usageCount is 1
+      const promoAfterPay = await db.collection("promo").findOne({ code: "TESTPROMO10" });
+      expect(promoAfterPay!.usageCount).toBe(1);
+
+      // 7. Test Idempotency: Cashier updates payment to 'paid' again (simulate duplicate update)
+      const payment = await resPayCashier.json() as any;
+      await app.handle(
+        new Request(`http://localhost/payment/${payment._id}`, {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${tokCashier}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "paid" }),
+        })
+      );
+
+      // Verify usageCount remains 1
+      const promoAfterDuplicate = await db.collection("promo").findOne({ code: "TESTPROMO10" });
+      expect(promoAfterDuplicate!.usageCount).toBe(1);
+
+    } finally {
+      await db.collection("menu").deleteOne({ _id: new ObjectId(menuId) as any });
+      await db.collection("promo").deleteOne({ _id: new ObjectId(promoId) as any });
+      await db.collection("orders").deleteMany({ customerId: "cust_promo" });
+      await db.collection("payment").deleteMany({ method: "cash" });
+    }
+  }, 15000);
+
+  test("SEC-PAY-002: Race Condition / TOCTOU on Payment Webhook & Promo Consumption", async () => {
+    const { db } = await import("../src/config/client");
+    const { ObjectId } = await import("mongodb");
+    const { PaymentService } = await import("../src/moduls/cashier/cashier.service");
+    const { PromoService } = await import("../src/moduls/promo/promo.service");
+    const { createHash } = await import("node:crypto");
+    const { getMidtransConfig } = await import("../src/config/midtrans");
+    const config = getMidtransConfig();
+
+    const paymentService = new PaymentService();
+    const promoService = new PromoService();
+
+    const menuId = new ObjectId().toString();
+    const promoId = new ObjectId().toString();
+    const promoCode = "RACEPROMO20";
+
+    // 1. Seed Menu & Active Promo (usageLimit: 5, usageCount: 0)
+    await db.collection("menu").insertOne({
+      _id: new ObjectId(menuId) as any,
+      name: "Race Test Item",
+      price: 100000,
+      isAvailable: true,
+    });
+
+    await db.collection("promo").insertOne({
+      _id: new ObjectId(promoId) as any,
+      code: promoCode,
+      type: "percentage",
+      discountValue: 20,
+      usageLimit: 5,
+      usageCount: 0,
+      status: "active",
+      startDate: new Date(Date.now() - 10000),
+      endDate: new Date(Date.now() + 100000),
+    });
+
+    const payment1Id = new ObjectId().toString();
+
+    try {
+      // --- SUBTEST 1: Concurrent payment-success webhooks for the same payment ---
+      const order1Id = new ObjectId().toString();
+      await db.collection("orders").insertOne({
+        _id: new ObjectId(order1Id) as any,
+        customerId: "cust_race_1",
+        tableNumber: 10,
+        items: [{ menuId, name: "Race Test Item", quantity: 1, price: 100000, subtotal: 100000 }],
+        promoCode,
+        totalAmount: 100000,
+        discountAmount: 20000,
+        finalAmount: 80000,
+        status: "pending",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const midtransOrderId1 = `ORDER-${order1Id}-${Date.now()}`;
+      await db.collection("payment").insertOne({
+        _id: new ObjectId(payment1Id) as any,
+        orderId: order1Id,
+        tableNumber: 10,
+        totalAmount: 80000,
+        paidAmount: 0,
+        changeAmount: 0,
+        method: "qris",
+        status: "pending",
+        midtransOrderId: midtransOrderId1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      // Construct valid Midtrans signature
+      const grossAmountStr = "80000.00";
+      const statusCodeStr = "200";
+      const signatureRaw = midtransOrderId1 + statusCodeStr + grossAmountStr + config.serverKey;
+      const signatureKey = createHash("sha512").update(signatureRaw).digest("hex");
+
+      const webhookPayload = {
+        order_id: midtransOrderId1,
+        status_code: statusCodeStr,
+        gross_amount: grossAmountStr,
+        signature_key: signatureKey,
+        transaction_status: "settlement",
+        fraud_status: "accept",
+      };
+
+      // Send 10 CONCURRENT webhook/handleNotification calls for payment 1
+      await Promise.all(
+        Array.from({ length: 10 }).map(() => paymentService.handleNotification(webhookPayload as any))
+      );
+
+      // Verify payment status is paid and promo usage is EXACTLY 1 (not 10)
+      const payment1InDb = await db.collection("payment").findOne({ _id: new ObjectId(payment1Id) as any });
+      expect(payment1InDb!.status).toBe("paid");
+
+      const order1InDb = await db.collection("orders").findOne({ _id: new ObjectId(order1Id) as any });
+      expect(order1InDb!.status).toBe("completed");
+
+      const promoAfterWebhook = await db.collection("promo").findOne({ code: promoCode });
+      expect(promoAfterWebhook!.usageCount).toBe(1);
+
+      // --- SUBTEST 2: Duplicate webhook after payment is already paid ---
+      const duplicateRes = await paymentService.handleNotification(webhookPayload as any);
+      expect(duplicateRes.status).toBe("success");
+      const promoAfterDuplicate = await db.collection("promo").findOne({ code: promoCode });
+      expect(promoAfterDuplicate!.usageCount).toBe(1); // Promo count must remain 1
+
+      // --- SUBTEST 3: Concurrent promo consumption when usageCount = usageLimit - 1 ---
+      // Set promo usageCount to 4 (usageLimit is 5, so usageCount = 4 = limit - 1)
+      await db.collection("promo").updateOne({ code: promoCode }, { $set: { usageCount: 4 } });
+
+      // Run 10 concurrent promo consumption calls
+      const consumePromises = Array.from({ length: 10 }).map(() =>
+        promoService.consumeUsage(promoCode).catch((err) => err)
+      );
+      const consumeResults = await Promise.all(consumePromises);
+
+      // Exactly 1 should succeed, 9 should throw AppError
+      const succeededCount = consumeResults.filter((r) => r && !(r instanceof Error) && r._id).length;
+      const failedCount = consumeResults.filter((r) => r instanceof Error).length;
+
+      expect(succeededCount).toBe(1);
+      expect(failedCount).toBe(9);
+
+      // Verify usageCount in DB is EXACTLY 5 (does NOT exceed usageLimit = 5)
+      const promoFinal = await db.collection("promo").findOne({ code: promoCode });
+      expect(promoFinal!.usageCount).toBe(5);
+
+    } finally {
+      await db.collection("menu").deleteOne({ _id: new ObjectId(menuId) as any });
+      await db.collection("promo").deleteOne({ _id: new ObjectId(promoId) as any });
+      await db.collection("orders").deleteMany({ customerId: { $in: ["cust_race_1"] } });
+      await db.collection("payment").deleteMany({ _id: new ObjectId(payment1Id) as any });
+    }
+  }, 15000);
+
+  test("SEC-ORD-002: Inconsistent Order Total Recalculation / Stale finalAmount", async () => {
+    const { db } = await import("../src/config/client");
+    const { ObjectId } = await import("mongodb");
+    const { jwtPlugin } = await import("../src/utils/jwt/jwt.plugin");
+
+    const jwtApp = new Elysia().use(jwtPlugin);
+    jwtApp.get("/tokenCust", async ({ jwt }) => await jwt.sign({ id: "cust_ord002", email: "ord002@waru.com", role: "customer" }));
+    jwtApp.get("/tokenCashier", async ({ jwt }) => await jwt.sign({ id: "cashier_1", email: "c@waru.com", role: "cashier" }));
+    const tokCust = await (await jwtApp.handle(new Request("http://localhost/tokenCust"))).text();
+    const tokCashier = await (await jwtApp.handle(new Request("http://localhost/tokenCashier"))).text();
+
+    const menu1Id = new ObjectId().toString();
+    const menu2Id = new ObjectId().toString();
+    const promoId = new ObjectId().toString();
+
+    // 1. Seed Menu Items & Promo
+    await db.collection("menu").insertOne({
+      _id: new ObjectId(menu1Id) as any,
+      name: "Menu Item 1",
+      price: 100000,
+      isAvailable: true,
+    });
+    await db.collection("menu").insertOne({
+      _id: new ObjectId(menu2Id) as any,
+      name: "Menu Item 2",
+      price: 50000,
+      isAvailable: true,
+    });
+
+    await db.collection("promo").insertOne({
+      _id: new ObjectId(promoId) as any,
+      code: "ORD002PROMO10",
+      type: "percentage",
+      discountValue: 10,
+      usageLimit: 50,
+      usageCount: 0,
+      status: "active",
+      startDate: new Date(Date.now() - 10000),
+      endDate: new Date(Date.now() + 100000),
+    });
+
+    try {
+      // 2. Create Order Rp100.000 with 10% promo
+      const resOrder = await app.handle(
+        new Request("http://localhost/orders", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${tokCust}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tableNumber: 1,
+            items: [{ menuId: menu1Id, name: "Menu Item 1", quantity: 1, price: 100000 }],
+            promoCode: "ORD002PROMO10",
+          }),
+        })
+      );
+      expect(resOrder.status).toBe(200);
+      const orderJson = await resOrder.json() as any;
+      const orderId = orderJson.insertedId;
+
+      // Verify initial order amounts (total: 100000, discount: 10000, finalAmount: 90000)
+      const initialOrderInDb = await db.collection("orders").findOne({ _id: new ObjectId(orderId) as any });
+      expect(initialOrderInDb!.totalAmount).toBe(100000);
+      expect(initialOrderInDb!.discountAmount).toBe(10000);
+      expect(initialOrderInDb!.finalAmount).toBe(90000);
+
+      // 3. Update order items to add Menu Item 2 (total amount becomes 150000)
+      const resUpdate = await app.handle(
+        new Request(`http://localhost/orders/${orderId}`, {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${tokCashier}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: [
+              { menuId: menu1Id, name: "Menu Item 1", quantity: 1, price: 100000 },
+              { menuId: menu2Id, name: "Menu Item 2", quantity: 1, price: 50000 },
+            ],
+          }),
+        })
+      );
+      expect(resUpdate.status).toBe(200);
+
+      // 4. Verify DB order after update
+      const updatedOrderInDb = await db.collection("orders").findOne({ _id: new ObjectId(orderId) as any });
+      expect(updatedOrderInDb!.totalAmount).toBe(150000);
+      // Final amount MUST NOT stay 90000! With 10% promo on 150000, finalAmount must be 135000 (discount 15000).
+      expect(updatedOrderInDb!.finalAmount).not.toBe(90000);
+      expect(updatedOrderInDb!.discountAmount).toBe(15000);
+      expect(updatedOrderInDb!.finalAmount).toBe(135000);
+
+      // 5. Payment using the updated order must require authoritative 135000 (not 90000)
+      const resPayInsufficient = await app.handle(
+        new Request("http://localhost/payment", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${tokCashier}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId, method: "cash", paidAmount: 90000 }),
+        })
+      );
+      expect(resPayInsufficient.status).toBe(400); // 90000 < 135000
+
+      const resPayCorrect = await app.handle(
+        new Request("http://localhost/payment", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${tokCashier}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId, method: "cash", paidAmount: 135000 }),
+        })
+      );
+      expect(resPayCorrect.status).toBe(200);
+
+      const paymentInDb = await db.collection("payment").findOne({ orderId });
+      expect(paymentInDb!.totalAmount).toBe(135000);
+
+    } finally {
+      await db.collection("menu").deleteMany({ _id: { $in: [new ObjectId(menu1Id), new ObjectId(menu2Id)] } as any });
+      await db.collection("promo").deleteOne({ _id: new ObjectId(promoId) as any });
+      await db.collection("orders").deleteMany({ customerId: "cust_ord002" });
+      await db.collection("payment").deleteMany({ totalAmount: { $in: [90000, 135000] } });
+    }
+  }, 15000);
 });

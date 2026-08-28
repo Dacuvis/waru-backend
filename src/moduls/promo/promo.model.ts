@@ -49,17 +49,17 @@ export class PromoModel {
     );
   }
 
-  async consumeUsage(id: string, now: Date) {
-    if (!ObjectId.isValid(id)) return null;
+  async consumeUsageByCode(code: string, now: Date) {
     return await this.collection.findOneAndUpdate(
       {
-        _id: new ObjectId(id),
+        code: code.toUpperCase(),
         status: "active",
         startDate: { $lte: now },
         endDate: { $gte: now },
         $or: [
           { usageLimit: { $exists: false } },
-          { $expr: { $lt: ["$usageCount", "$usageLimit"] } },
+          { usageLimit: null },
+          { $expr: { $lt: [{ $ifNull: ["$usageCount", 0] }, "$usageLimit"] } },
         ],
       },
       { $inc: { usageCount: 1 }, $set: { updatedAt: now } },

@@ -34,8 +34,8 @@ export class ReviewController {
     return await service.getAverageRating(query);
   }
 
-  async create({ body }: { body: CreateReview }) {
-    return await service.create(body);
+  async create({ body, user }: { body: CreateReview; user?: any }) {
+    return await service.create(body, user);
   }
 
   async update({ params, body }: { params: { id: string }; body: UpdateReview }) {

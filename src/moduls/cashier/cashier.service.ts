@@ -8,6 +8,7 @@ import {
 } from "../../utils/pagination/pagination";
 import { OrderModel, PaymentModel } from "./cashier.model";
 import { MenuModel } from "../menu/menu.model";
+import { PromoService } from "../promo/promo.service";
 import type { AuthUser } from "../../utils/auth/auth.middleware";
 import type {
   CreateOrder,
@@ -23,8 +24,9 @@ import type {
 
 export class OrderService {
   private model = new OrderModel();
-  private paymentModel = new PaymentModel();
   private menuModel = new MenuModel();
+  private paymentModel = new PaymentModel();
+  private promoService = new PromoService();
 
   async getAll(query: PaginationQuery, user?: AuthUser) {
     const { page, limit, skip } = parsePagination(query);
@@ -68,6 +70,9 @@ export class OrderService {
         if (!menuItem) {
           throw new AppError(`Menu dengan id '${item.menuId}' tidak ditemukan`, 404, "E30");
         }
+        if (!(menuItem as any).isAvailable) {
+          throw new AppError(`Menu '${(menuItem as any).name || item.name}' sedang tidak tersedia`, 400, "E10");
+        }
         const price = (menuItem as any).price;
         const subtotal = price * item.quantity;
         return {
@@ -81,6 +86,14 @@ export class OrderService {
     );
     const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
 
+    let finalAmount = totalAmount;
+    let discountAmount = 0;
+    if (data.promoCode) {
+      const promoData = await this.promoService.applyPromo({ code: data.promoCode, orderTotal: totalAmount });
+      finalAmount = promoData.finalTotal;
+      discountAmount = promoData.discountAmount;
+    }
+
     // customerId HARUS berasal dari authenticated user (JWT), bukan request body
     const customerId = user?.id;
     const now = new Date();
@@ -89,13 +102,16 @@ export class OrderService {
       customerId,
       items,
       totalAmount,
+      promoCode: data.promoCode,
+      discountAmount,
+      finalAmount,
       status: "pending" as const,
       createdAt: now,
       updatedAt: now,
     };
 
     const result = await this.model.create(order);
-    logger.info({ orderId: result.insertedId, totalAmount, customerId }, "Order baru dibuat");
+    logger.info({ orderId: result.insertedId, totalAmount, finalAmount, customerId }, "Order baru dibuat");
     return result;
   }
 
@@ -103,7 +119,18 @@ export class OrderService {
     const existing = await this.model.getById(id);
     if (!existing) throw new AppError(`Order dengan id ${id} tidak ditemukan`, 404, "E30");
 
-    let updateData: UpdateOrder & { totalAmount?: number; updatedAt: Date } = {
+    const payment = await this.paymentModel.getByOrderId(id);
+    if (payment && (payment as any).status === "paid") {
+      throw new AppError("Order yang sudah dibayar tidak boleh diubah", 409, "E40");
+    }
+
+    let updateData: UpdateOrder & {
+      totalAmount?: number;
+      discountAmount?: number;
+      finalAmount?: number;
+      promoCode?: string | null;
+      updatedAt: Date;
+    } = {
       ...data,
       updatedAt: new Date(),
     };
@@ -115,6 +142,9 @@ export class OrderService {
           const menuItem = await this.menuModel.findById(item.menuId);
           if (!menuItem) {
             throw new AppError(`Menu dengan id '${item.menuId}' tidak ditemukan`, 404, "E30");
+          }
+          if (!(menuItem as any).isAvailable) {
+            throw new AppError(`Menu '${(menuItem as any).name || item.name}' sedang tidak tersedia`, 400, "E10");
           }
           const price = (menuItem as any).price;
           const subtotal = price * item.quantity;
@@ -128,7 +158,29 @@ export class OrderService {
         }),
       );
       updateData.items = items;
-      updateData.totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
+      const newTotalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
+      updateData.totalAmount = newTotalAmount;
+
+      // Hitung ulang promo (atau reset jika tidak valid lagi) agar finalAmount tidak stale (SEC-ORD-002)
+      const promoCode = (existing as any).promoCode;
+      if (promoCode) {
+        try {
+          const promoData = await this.promoService.applyPromo({
+            code: promoCode,
+            orderTotal: newTotalAmount,
+          });
+          updateData.discountAmount = promoData.discountAmount;
+          updateData.finalAmount = promoData.finalTotal;
+        } catch (err) {
+          // Jika promo sudah tidak memenuhi syarat untuk total baru, reset promo fields
+          updateData.promoCode = null as any;
+          updateData.discountAmount = 0;
+          updateData.finalAmount = newTotalAmount;
+        }
+      } else {
+        updateData.discountAmount = 0;
+        updateData.finalAmount = newTotalAmount;
+      }
     }
 
     const updated = await this.model.update(id, updateData);
@@ -161,6 +213,18 @@ export class OrderService {
 export class PaymentService {
   private model = new PaymentModel();
   private orderModel = new OrderModel();
+  private promoService = new PromoService();
+
+  private async processPromoIfPaid(orderId: string) {
+    const order = await this.orderModel.getById(orderId);
+    if (order && (order as any).promoCode) {
+      try {
+        await this.promoService.consumeUsage((order as any).promoCode);
+      } catch (err) {
+        logger.error({ err, orderId, promoCode: (order as any).promoCode }, "Gagal mengonsumsi kuota promo saat payment lunas");
+      }
+    }
+  }
 
   async getAll(query: PaginationQuery, user?: AuthUser) {
     const { page, limit, skip } = parsePagination(query);
@@ -218,7 +282,7 @@ export class PaymentService {
       throw new AppError(`Order dengan id ${data.orderId} tidak ditemukan`, 404, "E30");
     }
 
-    const totalAmount = (order as any).totalAmount as number;
+    const totalAmount = ((order as any).finalAmount ?? (order as any).totalAmount) as number;
     const tableNumber = (order as any).tableNumber as number;
     const customerName = (order as any).customerName as string | undefined;
 
@@ -232,6 +296,10 @@ export class PaymentService {
 
     // ─── Case 1: Metode Pembayaran Cash ────────────────────────────────────
     if (data.method === "cash") {
+      if (user?.role === "customer") {
+        throw new AppError("Akses ditolak. Customer tidak dapat memproses pembayaran tunai secara langsung.", 403, "E20");
+      }
+
       if (data.paidAmount === undefined || data.paidAmount === null) {
         throw new AppError("Jumlah bayar (paidAmount) wajib diisi untuk metode cash", 400, "E10");
       }
@@ -258,20 +326,60 @@ export class PaymentService {
         updatedAt: now,
       };
 
+      let transitionedToPaid = false;
+
       if (existing) {
-        await this.model.update((existing as any)._id.toString(), {
-          ...paymentRecord,
+        const updated = await this.model.markAsPaidByOrderId(data.orderId, {
+          tableNumber,
+          totalAmount,
+          paidAmount: data.paidAmount,
+          changeAmount,
+          method: "cash",
+          notes: data.notes,
           updatedAt: now,
         });
+        if (updated) {
+          transitionedToPaid = true;
+        } else {
+          if ((existing as any).status === "paid") {
+            throw new AppError("Order ini sudah lunas dibayar", 409, "E40");
+          }
+        }
       } else {
-        await this.model.create(paymentRecord);
+        try {
+          await this.model.create(paymentRecord);
+          transitionedToPaid = true;
+        } catch (err: any) {
+          if (err?.code === 11000 || err?.message?.includes("E11000") || err?.message?.includes("duplicate key")) {
+            const updated = await this.model.markAsPaidByOrderId(data.orderId, {
+              tableNumber,
+              totalAmount,
+              paidAmount: data.paidAmount,
+              changeAmount,
+              method: "cash",
+              notes: data.notes,
+              updatedAt: now,
+            });
+            if (updated) {
+              transitionedToPaid = true;
+            } else {
+              throw new AppError("Order ini sudah lunas dibayar", 409, "E40");
+            }
+          } else {
+            throw err;
+          }
+        }
       }
 
-      // Update status order menjadi completed
-      await this.orderModel.update(data.orderId, {
-        status: "completed",
-        updatedAt: now,
-      });
+      if (transitionedToPaid) {
+        // Update status order menjadi completed
+        await this.orderModel.update(data.orderId, {
+          status: "completed",
+          updatedAt: now,
+        });
+
+        await this.processPromoIfPaid(data.orderId);
+      }
 
       logger.info(
         { orderId: data.orderId, method: "cash", totalAmount, paidAmount: data.paidAmount },
@@ -408,21 +516,23 @@ export class PaymentService {
 
     if (targetStatus === "paid") {
       const paidAmount = parseFloat(payload.gross_amount) || (payment as any).totalAmount;
-      await this.model.update(paymentId, {
-        status: "paid",
+      const updatedPayment = await this.model.markAsPaidById(paymentId, {
         paidAmount,
         changeAmount: 0,
         settlementTime: payload.settlement_time ? new Date(payload.settlement_time) : now,
         updatedAt: now,
       });
 
-      // Update status order menjadi completed
-      await this.orderModel.update(orderId, {
-        status: "completed",
-        updatedAt: now,
-      });
+      if (updatedPayment) {
+        // Update status order menjadi completed
+        await this.orderModel.update(orderId, {
+          status: "completed",
+          updatedAt: now,
+        });
 
-      logger.info({ paymentId, orderId, transactionStatus }, "QRIS payment berhasil dilunasi via webhook Midtrans");
+        await this.processPromoIfPaid(orderId);
+        logger.info({ paymentId, orderId, transactionStatus }, "QRIS payment berhasil dilunasi via webhook Midtrans");
+      }
     } else if (targetStatus === "failed") {
       await this.model.update(paymentId, {
         status: "failed",
@@ -479,18 +589,21 @@ export class PaymentService {
 
       if (targetStatus === "paid") {
         const paidAmount = parseFloat(statusRes.grossAmount) || (payment as any).totalAmount;
-        await this.model.update((payment as any)._id.toString(), {
-          status: "paid",
+        const updatedPayment = await this.model.markAsPaidById((payment as any)._id.toString(), {
           paidAmount,
           changeAmount: 0,
           settlementTime: statusRes.settlementTime ? new Date(statusRes.settlementTime) : now,
           updatedAt: now,
         });
 
-        await this.orderModel.update((payment as any).orderId, {
-          status: "completed",
-          updatedAt: now,
-        });
+        if (updatedPayment) {
+          await this.orderModel.update((payment as any).orderId, {
+            status: "completed",
+            updatedAt: now,
+          });
+
+          await this.processPromoIfPaid((payment as any).orderId);
+        }
       } else if (targetStatus === "failed") {
         await this.model.update((payment as any)._id.toString(), {
           status: "failed",
@@ -508,10 +621,27 @@ export class PaymentService {
     const existing = await this.model.getById(id);
     if (!existing) throw new AppError(`Payment dengan id ${id} tidak ditemukan`, 404, "E30");
 
-    const updated = await this.model.update(id, { ...data, updatedAt: new Date() });
-    if (data.status && data.status !== (existing as any).status) {
+    let transitionedToPaid = false;
+    let updated;
+
+    if (data.status === "paid" && (existing as any).status !== "paid") {
+      updated = await this.model.markAsPaidById(id, { ...data, updatedAt: new Date() });
+      if (updated) {
+        transitionedToPaid = true;
+      }
+    } else {
+      updated = await this.model.update(id, { ...data, updatedAt: new Date() });
+    }
+
+    if (transitionedToPaid) {
       await this.orderModel.update((existing as any).orderId, {
-        status: data.status === "paid" ? "completed" : "pending",
+        status: "completed",
+        updatedAt: new Date(),
+      });
+      await this.processPromoIfPaid((existing as any).orderId);
+    } else if (data.status && data.status !== "paid" && data.status !== (existing as any).status) {
+      await this.orderModel.update((existing as any).orderId, {
+        status: "pending",
         updatedAt: new Date(),
       });
     }

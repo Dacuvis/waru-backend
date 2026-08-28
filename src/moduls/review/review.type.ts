@@ -11,6 +11,7 @@ export interface Review {
   rating: number;          // 1-5
   comment?: string;
   isPublished: boolean;
+  userId: string;          // Authorative identity dari JWT
   createdAt: Date;
   updatedAt: Date;
 }

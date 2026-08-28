@@ -6,10 +6,12 @@ import {
   type PaginationQuery,
 } from "../../utils/pagination/pagination";
 import { ReviewModel } from "./review.model";
+import { OrderModel } from "../cashier/cashier.model";
 import type { CreateReview, UpdateReview } from "./review.type";
 
 export class ReviewService {
   private model = new ReviewModel();
+  private orderModel = new OrderModel();
 
   private validateTarget(target?: string, targetId?: string) {
     const validTargets = ["menu", "service", "overall"];
@@ -66,11 +68,27 @@ export class ReviewService {
     return await this.model.getAverageRating(query.target, query.targetId);
   }
 
-  async create(data: CreateReview) {
+  async create(data: CreateReview, user?: any) {
     this.validateTarget(data.target, data.targetId);
+
+    if (!user || !user.id) {
+      throw new AppError("Akses ditolak. User tidak valid", 401, "E20");
+    }
+
+    if (data.orderId) {
+      const order = await this.orderModel.getById(data.orderId);
+      if (!order) {
+        throw new AppError(`Order dengan id ${data.orderId} tidak ditemukan`, 404, "E30");
+      }
+      if ((order as any).customerId !== user.id) {
+        throw new AppError(`Akses ditolak. Anda bukan pemilik order tersebut`, 403, "E20");
+      }
+    }
+
     const now = new Date();
     const review = {
       ...data,
+      userId: user.id,
       isPublished: false,  // default draft, perlu publish manual
       createdAt: now,
       updatedAt: now,
@@ -78,7 +96,7 @@ export class ReviewService {
 
     const result = await this.model.create(review);
     logger.info(
-      { reviewId: result.insertedId, rating: data.rating, target: data.target },
+      { reviewId: result.insertedId, rating: data.rating, target: data.target, userId: user.id },
       "Review baru dibuat",
     );
     return result;

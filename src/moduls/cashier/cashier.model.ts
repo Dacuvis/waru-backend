@@ -116,11 +116,37 @@ export class PaymentModel {
     );
   }
 
-  async updateByOrderId(orderId: string, data: UpdatePayment & { updatedAt: Date }) {
+  async markAsPaidById(id: string, updateData: Record<string, any>) {
+    if (!ObjectId.isValid(id)) return null;
     await this.indexesReady;
     return await this.collection.findOneAndUpdate(
-      { orderId },
-      { $set: data },
+      {
+        _id: new ObjectId(id),
+        status: { $ne: "paid" },
+      },
+      {
+        $set: {
+          ...updateData,
+          status: "paid",
+        },
+      },
+      { returnDocument: "after" },
+    );
+  }
+
+  async markAsPaidByOrderId(orderId: string, updateData: Record<string, any>) {
+    await this.indexesReady;
+    return await this.collection.findOneAndUpdate(
+      {
+        orderId,
+        status: { $ne: "paid" },
+      },
+      {
+        $set: {
+          ...updateData,
+          status: "paid",
+        },
+      },
       { returnDocument: "after" },
     );
   }
