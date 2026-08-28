@@ -1,5 +1,5 @@
 import { Elysia } from "elysia";
-import { authMiddleware } from "../../utils/auth/auth.middleware";
+import { authMiddleware, type AuthUser } from "../../utils/auth/auth.middleware";
 import { requireRole } from "../../utils/auth/role.middleware";
 import { BusinessAssistantController } from "./business_assistant.controller";
 import {
@@ -19,34 +19,34 @@ export const businessAssistantRoute = new Elysia({ prefix: "/assistant" })
   // GET /assistant?page=1&limit=10  ← list semua sesi
   .get(
     "/",
-    ({ query }: { query: { page?: string; limit?: string } }) => ctrl.getSessions({ query }),
+    ({ query, user }: { query: { page?: string; limit?: string }; user?: AuthUser }) => ctrl.getSessions({ query, user }),
   )
 
   // GET /assistant/:id  ← detail sesi + seluruh riwayat chat
   .get(
     "/:id",
-    ({ params }: { params: { id: string } }) => ctrl.getSessionById({ params }),
+    ({ params, user }: { params: { id: string }; user?: AuthUser }) => ctrl.getSessionById({ params, user }),
     getSessionByIdValidation,
   )
 
   // POST /assistant  ← buat sesi baru + pesan pertama
   .post(
     "/",
-    ({ body }: { body: CreateSessionRequest }) => ctrl.createSession({ body }),
+    ({ body, user }: { body: CreateSessionRequest; user?: AuthUser }) => ctrl.createSession({ body, user }),
     createSessionValidation,
   )
 
   // POST /assistant/:id/message  ← kirim pesan ke sesi yang ada
   .post(
     "/:id/message",
-    ({ params, body }: { params: { id: string }; body: SendMessageRequest }) =>
-      ctrl.sendMessage({ params, body }),
+    ({ params, body, user }: { params: { id: string }; body: SendMessageRequest; user?: AuthUser }) =>
+      ctrl.sendMessage({ params, body, user }),
     sendMessageValidation,
   )
 
   // DELETE /assistant/:id
   .delete(
     "/:id",
-    ({ params }: { params: { id: string } }) => ctrl.deleteSession({ params }),
+    ({ params, user }: { params: { id: string }; user?: AuthUser }) => ctrl.deleteSession({ params, user }),
     deleteSessionValidation,
   );

@@ -5,15 +5,15 @@ import type { AssistantSession, AssistantMessage } from "./business_assistant.ty
 export class BusinessAssistantModel {
   private collection = db.collection("business_assistant");
 
-  async getSessions(skip: number, limit: number) {
+  async getSessions(skip: number, limit: number, filter: Record<string, any> = {}) {
     const [data, total] = await Promise.all([
       this.collection
-        .find({}, { projection: { messages: 0 } }) // exclude messages untuk list
+        .find(filter, { projection: { messages: 0 } }) // exclude messages untuk list
         .sort({ updatedAt: -1 })
         .skip(skip)
         .limit(limit)
         .toArray(),
-      this.collection.countDocuments(),
+      this.collection.countDocuments(filter),
     ]);
     return { data, total };
   }

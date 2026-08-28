@@ -359,14 +359,162 @@ describe("Comprehensive Backend Security Audit Suite", () => {
     expect(patchRes.status).not.toBe(403);
   });
 
-  test("High Vulnerability: Business Assistant Session Model lacks ownerId / bossId", async () => {
-    const session = {
-      title: "Strategy Session",
+  test("Business Assistant Session Security - BOLA & Ownership Protection", async () => {
+    const { db } = await import("../src/config/client");
+    const { ObjectId } = await import("mongodb");
+    const { jwtPlugin } = await import("../src/utils/jwt/jwt.plugin");
+
+    const jwtApp = new Elysia().use(jwtPlugin);
+    jwtApp.get("/tokenBossA", async ({ jwt }) => await jwt.sign({ id: "boss_A", email: "a@waru.com", role: "boss" }));
+    jwtApp.get("/tokenBossB", async ({ jwt }) => await jwt.sign({ id: "boss_B", email: "b@waru.com", role: "boss" }));
+
+    const tokenA = await (await jwtApp.handle(new Request("http://localhost/tokenBossA"))).text();
+    const tokenB = await (await jwtApp.handle(new Request("http://localhost/tokenBossB"))).text();
+
+    // Scenario F: User A membuat session sambil mengirim ownerId/userId milik User B -> server tetap menyimpan ownership berdasarkan JWT User A
+    const resCreate = await app.handle(
+      new Request("http://localhost/assistant", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${tokenA}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: "Session Boss A",
+          message: "Analisis penjualan minggu ini",
+          userId: "boss_B", // Tampered ownership field
+          bossId: "boss_B",
+          ownerId: "boss_B",
+        }),
+      }),
+    );
+    expect(resCreate.status).toBe(200);
+    const createData = (await resCreate.json()) as any;
+    const sessionId = createData.sessionId;
+
+    // Verify stored session in DB has correct userId and bossId set to boss_A (not boss_B)
+    const storedSession = await db.collection("business_assistant").findOne({ _id: new ObjectId(sessionId) });
+    expect(storedSession).not.toBeNull();
+    expect(storedSession!.userId).toBe("boss_A");
+    expect(storedSession!.bossId).toBe("boss_A");
+
+    try {
+      // Scenario A: User A bisa GET session tersebut
+      const resGetA = await app.handle(
+        new Request(`http://localhost/assistant/${sessionId}`, {
+          headers: { Authorization: `Bearer ${tokenA}` },
+        }),
+      );
+      expect(resGetA.status).toBe(200);
+
+      // Scenario B: User B mencoba GET session milik User A -> 404
+      const resGetB = await app.handle(
+        new Request(`http://localhost/assistant/${sessionId}`, {
+          headers: { Authorization: `Bearer ${tokenB}` },
+        }),
+      );
+      expect(resGetB.status).toBe(404);
+
+      // Scenario C: User B mencoba UPDATE (kirim message) ke session milik User A -> 404
+      const resSendMessageB = await app.handle(
+        new Request(`http://localhost/assistant/${sessionId}/message`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${tokenB}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: "Tampilkan omzet hari ini",
+          }),
+        }),
+      );
+      expect(resSendMessageB.status).toBe(404);
+
+      // Scenario E: User B melakukan LIST -> tidak boleh menerima session milik User A
+      const resListB = await app.handle(
+        new Request("http://localhost/assistant", {
+          headers: { Authorization: `Bearer ${tokenB}` },
+        }),
+      );
+      expect(resListB.status).toBe(200);
+      const listDataB = (await resListB.json()) as any;
+      const foundSession = listDataB.data.find((s: any) => s._id === sessionId);
+      expect(foundSession).toBeUndefined();
+
+      // Scenario D: User B mencoba DELETE session milik User A -> 404
+      const resDeleteB = await app.handle(
+        new Request(`http://localhost/assistant/${sessionId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${tokenB}` },
+        }),
+      );
+      expect(resDeleteB.status).toBe(404);
+
+      // Scenario D (Owner): User A delete session miliknya -> 200
+      const resDeleteA = await app.handle(
+        new Request(`http://localhost/assistant/${sessionId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${tokenA}` },
+        }),
+      );
+      expect(resDeleteA.status).toBe(200);
+
+    } finally {
+      await db.collection("business_assistant").deleteOne({ _id: new ObjectId(sessionId) });
+    }
+  });
+
+  test("Business Assistant Session Security - Legacy Session Fail-Closed", async () => {
+    const { db } = await import("../src/config/client");
+    const { ObjectId } = await import("mongodb");
+    const { jwtPlugin } = await import("../src/utils/jwt/jwt.plugin");
+
+    const jwtApp = new Elysia().use(jwtPlugin);
+    jwtApp.get("/tokenBossX", async ({ jwt }) => await jwt.sign({ id: "boss_X", email: "x@waru.com", role: "boss" }));
+    const tokenX = await (await jwtApp.handle(new Request("http://localhost/tokenBossX"))).text();
+
+    // Create a legacy session directly in DB (without userId/bossId)
+    const legacySessionId = new ObjectId();
+    await db.collection("business_assistant").insertOne({
+      _id: legacySessionId,
+      title: "Legacy Session",
       messages: [],
       createdAt: new Date(),
       updatedAt: new Date(),
-    };
-    expect((session as any).userId).toBeUndefined();
-    expect((session as any).bossId).toBeUndefined();
+    } as any);
+
+    try {
+      // 1. GET /assistant/:id -> should fail closed (404)
+      const resGet = await app.handle(
+        new Request(`http://localhost/assistant/${legacySessionId.toString()}`, {
+          headers: { Authorization: `Bearer ${tokenX}` },
+        }),
+      );
+      expect(resGet.status).toBe(404);
+
+      // 2. POST /assistant/:id/message -> should fail closed (404)
+      const resSendMessage = await app.handle(
+        new Request(`http://localhost/assistant/${legacySessionId.toString()}/message`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${tokenX}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ message: "Hello legacy" }),
+        }),
+      );
+      expect(resSendMessage.status).toBe(404);
+
+      // 3. DELETE /assistant/:id -> should fail closed (404)
+      const resDelete = await app.handle(
+        new Request(`http://localhost/assistant/${legacySessionId.toString()}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${tokenX}` },
+        }),
+      );
+      expect(resDelete.status).toBe(404);
+    } finally {
+      await db.collection("business_assistant").deleteOne({ _id: legacySessionId });
+    }
   });
 });

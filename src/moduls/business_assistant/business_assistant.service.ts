@@ -178,32 +178,40 @@ async function generateInsights(
 
 // ─── Service ─────────────────────────────────────────────────────────────────
 
+import type { AuthUser } from "../../utils/auth/auth.middleware";
+
 export class BusinessAssistantService {
   private model = new BusinessAssistantModel();
   private analyticsModel = new AnalyticsModel();
 
-  async getSessions(query: PaginationQuery) {
+  async getSessions(query: PaginationQuery, user: AuthUser) {
     const { page, limit, skip } = parsePagination(query);
-    logger.info({ page, limit }, "Mengambil sesi business assistant");
+    logger.info({ page, limit, userId: user.id }, "Mengambil sesi business assistant");
 
-    const { data, total } = await this.model.getSessions(skip, limit);
+    const filter: Record<string, any> = { userId: user.id };
+    const { data, total } = await this.model.getSessions(skip, limit, filter);
     return buildPaginationResult(data, total, page, limit);
   }
 
-  async getSessionById(id: string) {
+  async getSessionById(id: string, user: AuthUser) {
     const session = await this.model.getSessionById(id);
     if (!session) throw new AppError(`Sesi dengan id ${id} tidak ditemukan`, 404, "E30");
-    logger.info({ sessionId: id }, "Mengambil sesi by id");
+    if (session.userId !== user.id) {
+      throw new AppError(`Sesi dengan id ${id} tidak ditemukan`, 404, "E30");
+    }
+    logger.info({ sessionId: id, userId: user.id }, "Mengambil sesi by id");
     return session;
   }
 
-  async createSession(data: CreateSessionRequest) {
+  async createSession(data: CreateSessionRequest, user: AuthUser) {
     const now = new Date();
 
     // Generate insight berdasarkan pesan awal
     const assistantResponse = await generateInsights(data.message, this.analyticsModel);
 
     const session = {
+      userId: user.id,
+      bossId: user.id,
       title: data.title ?? `Sesi ${now.toLocaleDateString("id-ID")}`,
       messages: [
         { role: "user" as const, content: data.message, timestamp: now },
@@ -219,7 +227,7 @@ export class BusinessAssistantService {
     };
 
     const result = await this.model.createSession(session as any);
-    logger.info({ sessionId: result.insertedId }, "Sesi business assistant dibuat");
+    logger.info({ sessionId: result.insertedId, userId: user.id }, "Sesi business assistant dibuat");
 
     return {
       sessionId: result.insertedId,
@@ -228,9 +236,12 @@ export class BusinessAssistantService {
     };
   }
 
-  async sendMessage(id: string, data: SendMessageRequest) {
+  async sendMessage(id: string, data: SendMessageRequest, user: AuthUser) {
     const session = await this.model.getSessionById(id);
     if (!session) throw new AppError(`Sesi dengan id ${id} tidak ditemukan`, 404, "E30");
+    if (session.userId !== user.id) {
+      throw new AppError(`Sesi dengan id ${id} tidak ditemukan`, 404, "E30");
+    }
 
     const now = new Date();
 
@@ -250,16 +261,19 @@ export class BusinessAssistantService {
       insights: assistantResponse.insights,
     });
 
-    logger.info({ sessionId: id }, "Pesan dikirim ke business assistant");
+    logger.info({ sessionId: id, userId: user.id }, "Pesan dikirim ke business assistant");
     return assistantResponse;
   }
 
-  async deleteSession(id: string) {
+  async deleteSession(id: string, user: AuthUser) {
     const session = await this.model.getSessionById(id);
     if (!session) throw new AppError(`Sesi dengan id ${id} tidak ditemukan`, 404, "E30");
+    if (session.userId !== user.id) {
+      throw new AppError(`Sesi dengan id ${id} tidak ditemukan`, 404, "E30");
+    }
 
     const deleted = await this.model.deleteSession(id);
-    logger.info({ sessionId: id }, "Sesi business assistant dihapus");
+    logger.info({ sessionId: id, userId: user.id }, "Sesi business assistant dihapus");
     return deleted;
   }
 }

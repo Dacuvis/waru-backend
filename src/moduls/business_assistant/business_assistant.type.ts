@@ -17,6 +17,8 @@ export interface AssistantMessage {
 
 export interface AssistantSession {
   _id?: ObjectId;
+  userId?: string;
+  bossId?: string;
   title: string;
   messages: AssistantMessage[];
   createdAt: Date;
