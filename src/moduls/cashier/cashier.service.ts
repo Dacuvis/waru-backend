@@ -9,6 +9,7 @@ import {
 import { OrderModel, PaymentModel } from "./cashier.model";
 import { MenuModel } from "../menu/menu.model";
 import { PromoService } from "../promo/promo.service";
+import { NotificationModel } from "../notification/notification.model";
 import type { AuthUser } from "../../utils/auth/auth.middleware";
 import type {
   CreateOrder,
@@ -112,6 +113,24 @@ export class OrderService {
 
     const result = await this.model.create(order);
     logger.info({ orderId: result.insertedId, totalAmount, finalAmount, customerId }, "Order baru dibuat");
+
+    // Kirim notifikasi order baru ke database
+    try {
+      const notificationModel = new NotificationModel();
+      await notificationModel.create({
+        type: "order_new",
+        target: "all",
+        title: "Pesanan Baru Dibuat",
+        message: `Pesanan baru untuk Meja ${data.tableNumber} senilai Rp ${finalAmount.toLocaleString("id-ID")} telah dibuat.`,
+        referenceId: result.insertedId.toString(),
+        isRead: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } catch (err) {
+      // Non-blocking log if it fails
+    }
+
     return result;
   }
 
@@ -217,12 +236,34 @@ export class PaymentService {
 
   private async processPromoIfPaid(orderId: string) {
     const order = await this.orderModel.getById(orderId);
-    if (order && (order as any).promoCode) {
+    if (!order) return;
+
+    if ((order as any).promoCode) {
       try {
         await this.promoService.consumeUsage((order as any).promoCode);
       } catch (err) {
         logger.error({ err, orderId, promoCode: (order as any).promoCode }, "Gagal mengonsumsi kuota promo saat payment lunas");
       }
+    }
+
+    // Kirim notifikasi pembayaran sukses ke database
+    try {
+      const notificationModel = new NotificationModel();
+      const now = new Date();
+      const amount = (order as any).finalAmount ?? (order as any).totalAmount;
+      const tableNumber = (order as any).tableNumber;
+      await notificationModel.create({
+        type: "payment_success",
+        target: "all",
+        title: "Pembayaran Berhasil",
+        message: `Pembayaran untuk Meja ${tableNumber} senilai Rp ${amount.toLocaleString("id-ID")} telah lunas.`,
+        referenceId: orderId,
+        isRead: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } catch (err) {
+      // Non-blocking log if it fails
     }
   }
 
@@ -241,13 +282,22 @@ export class PaymentService {
   }
 
   async getById(id: string, user?: AuthUser) {
-    const payment = await this.model.getById(id);
+    let payment = await this.model.getById(id);
     if (!payment) throw new AppError(`Payment dengan id ${id} tidak ditemukan`, 404, "E30");
 
     if (user?.role === "customer" && user?.id) {
       const order = await this.orderModel.getById((payment as any).orderId);
       if (!order || (order as any).customerId !== user.id) {
         throw new AppError(`Payment dengan id ${id} tidak ditemukan`, 404, "E30");
+      }
+    }
+
+    // Auto-sync status dari Midtrans jika status masih pending
+    if ((payment as any).status === "pending" && (payment as any).method === "qris") {
+      try {
+        payment = await this.checkStatus(id);
+      } catch (err) {
+        logger.warn({ paymentId: id, err }, "Gagal auto-sync status payment dari Midtrans");
       }
     }
 
@@ -263,8 +313,18 @@ export class PaymentService {
       }
     }
 
-    const payment = await this.model.getByOrderId(orderId);
+    let payment = await this.model.getByOrderId(orderId);
     if (!payment) throw new AppError(`Payment untuk order id ${orderId} tidak ditemukan`, 404, "E30");
+
+    // Auto-sync status dari Midtrans jika status masih pending
+    if ((payment as any).status === "pending" && (payment as any).method === "qris") {
+      try {
+        payment = await this.checkStatus((payment as any)._id.toString());
+      } catch (err) {
+        logger.warn({ orderId, err }, "Gagal auto-sync status payment dari Midtrans");
+      }
+    }
+
     return payment;
   }
 
@@ -484,37 +544,32 @@ export class PaymentService {
     }
 
     if (!payment) {
-      logger.warn({ order_id: payload.order_id }, "Payment tidak ditemukan untuk webhook Midtrans");
-      return { status: "ignored", message: "Payment tidak ditemukan" };
+      logger.warn({ order_id: payload.order_id }, "Payment tidak ditemukan saat memproses notifikasi Midtrans");
+      throw new AppError(`Payment untuk order_id ${payload.order_id} tidak ditemukan`, 404, "E30");
     }
 
     const paymentId = (payment as any)._id.toString();
     const orderId = (payment as any).orderId;
-    const now = new Date();
     const transactionStatus = payload.transaction_status;
     const fraudStatus = payload.fraud_status;
+    const now = new Date();
 
+    // 3. Tentukan target status pembayaran
     let targetStatus: PaymentStatus = (payment as any).status;
 
-    if (transactionStatus === "capture") {
-      if (fraudStatus === "accept") {
-        targetStatus = "paid";
-      }
-    } else if (transactionStatus === "settlement") {
-      targetStatus = "paid";
-    } else if (
-      transactionStatus === "cancel" ||
-      transactionStatus === "deny" ||
-      transactionStatus === "expire"
+    if (
+      transactionStatus === "settlement" ||
+      (transactionStatus === "capture" && fraudStatus === "accept")
     ) {
+      targetStatus = "paid";
+    } else if (["cancel", "deny", "expire"].includes(transactionStatus)) {
       targetStatus = "failed";
-    } else if (transactionStatus === "refund" || transactionStatus === "partial_refund") {
+    } else if (["refund", "partial_refund"].includes(transactionStatus)) {
       targetStatus = "refunded";
-    } else if (transactionStatus === "pending") {
-      targetStatus = "pending";
     }
 
-    if (targetStatus === "paid") {
+    // 4. Update status payment dan order jika berubah
+    if (targetStatus === "paid" && (payment as any).status !== "paid") {
       const paidAmount = parseFloat(payload.gross_amount) || (payment as any).totalAmount;
       const updatedPayment = await this.model.markAsPaidById(paymentId, {
         paidAmount,

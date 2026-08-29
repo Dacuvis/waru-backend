@@ -3,6 +3,7 @@ import { verifyPassword } from "../../utils/security/hash";
 import { sendEmail, loginEmailTemplate } from "../../utils/email/email";
 import { setCookieToken, type ElysiaContext } from "../../utils/cookies/cookies";
 import { LoginModel } from "./login.model";
+import { NotificationModel } from "../notification/notification.model";
 import type { LoginResponse } from "./login.type";
 
 export class LoginService {
@@ -47,6 +48,23 @@ export class LoginService {
     });
 
     setCookieToken(ctx, token);
+
+    // Kirim notifikasi login ke database
+    try {
+      const notificationModel = new NotificationModel();
+      const now = new Date();
+      await notificationModel.create({
+        type: "system",
+        target: "all",
+        title: "Login Berhasil",
+        message: `${name} (${role}) berhasil masuk ke dalam sistem.`,
+        isRead: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } catch (err) {
+      // Non-blocking log if it fails
+    }
 
     return {
       message: "Login berhasil! Token dikirim ke email kamu.",

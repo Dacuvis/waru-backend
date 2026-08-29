@@ -62,6 +62,7 @@ export class MidtransService {
     if (!config.serverKey) {
       throw new AppError("MIDTRANS_SERVER_KEY belum dikonfigurasi di .env", 500, "E50");
     }
+
     const token = Buffer.from(`${config.serverKey}:`).toString("base64");
     return `Basic ${token}`;
   }
@@ -101,6 +102,8 @@ export class MidtransService {
 
     logger.info({ url, orderId: data.orderId, amount: data.grossAmount }, "Membuat charge QRIS Midtrans");
 
+    const authHeader = this.getAuthHeader();
+
     let response: Response;
     try {
       response = await fetch(url, {
@@ -108,7 +111,7 @@ export class MidtransService {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
-          Authorization: this.getAuthHeader(),
+          Authorization: authHeader,
         },
         body: JSON.stringify(body),
       });
@@ -150,14 +153,13 @@ export class MidtransService {
     };
   }
 
-  /**
-   * Cek status transaksi langsung ke Midtrans API
-   */
   async getTransactionStatus(orderIdOrTransactionId: string): Promise<MidtransStatusResponse> {
     const config = getMidtransConfig();
     const url = `${config.baseUrl}/${orderIdOrTransactionId}/status`;
 
     logger.info({ orderIdOrTransactionId }, "Memeriksa status transaksi Midtrans");
+
+    const authHeader = this.getAuthHeader();
 
     let response: Response;
     try {
@@ -166,7 +168,7 @@ export class MidtransService {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
-          Authorization: this.getAuthHeader(),
+          Authorization: authHeader,
         },
       });
     } catch (error) {
@@ -204,6 +206,8 @@ export class MidtransService {
     const config = getMidtransConfig();
     const url = `${config.baseUrl}/${orderIdOrTransactionId}/cancel`;
 
+    const authHeader = this.getAuthHeader();
+
     let response: Response;
     try {
       response = await fetch(url, {
@@ -211,7 +215,7 @@ export class MidtransService {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
-          Authorization: this.getAuthHeader(),
+          Authorization: authHeader,
         },
       });
     } catch (error) {
