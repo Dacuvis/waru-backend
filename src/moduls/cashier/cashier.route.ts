@@ -31,10 +31,10 @@ const paymentCtrl = new PaymentController();
 export const ordersRoute = new Elysia({ prefix: "/orders" })
   .use(authMiddleware)
 
-  // Customer & Cashier
+  // Customer, Cashier & Boss
   .use(
     new Elysia()
-      .use(requireRole(["customer", "cashier"]))
+      .use(requireRole(["customer", "cashier", "boss"]))
 
       // GET /orders?page=1&limit=10
       .get("/", ({ query, user }: { query: { page?: string; limit?: string }; user?: AuthUser }) =>
@@ -115,11 +115,11 @@ export const paymentRoute = new Elysia({ prefix: "/payment" })
     midtransNotificationValidation,
   )
 
-  // ─── Customer & Cashier ──────────────────────────────────────────────────
+  // ─── Customer, Cashier & Boss ─────────────────────────────────────────────
   .use(
     new Elysia()
       .use(authMiddleware)
-      .use(requireRole(["customer", "cashier"]))
+      .use(requireRole(["customer", "cashier", "boss"]))
 
       // GET /payment?page=1&limit=10
       .get("/", ({ query, user }: { query: { page?: string; limit?: string }; user?: AuthUser }) =>
