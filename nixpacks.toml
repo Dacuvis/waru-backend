@@ -1,16 +1,22 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "bun"]
+nixPkgs = ["nodejs_20", "curl"]
+cmds = [
+  "curl -fsSL https://bun.sh/install | bash",
+  "cp -f $HOME/.bun/bin/bun /usr/local/bin/bun || true"
+]
 
 [phases.install]
 cmds = [
+  "export PATH=\"$HOME/.bun/bin:$PATH\"",
   "bun --version",
   "bun install --frozen-lockfile"
 ]
 
 [phases.build]
 cmds = [
+  "export PATH=\"$HOME/.bun/bin:$PATH\"",
   "bun run typecheck"
 ]
 
 [start]
-cmd = "bun run index.ts"
+cmd = "export PATH=\"$HOME/.bun/bin:$PATH\" && bun run index.ts"
