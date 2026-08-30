@@ -1,5 +1,3 @@
-providers = ["bun"]
-
 [phases.setup]
 nixPkgs = ["bun", "nodejs_20"]
 
