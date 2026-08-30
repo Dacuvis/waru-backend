@@ -4,8 +4,12 @@ nixPkgs = ["nodejs_20", "unzip", "curl"]
 [phases.install]
 cmds = [
   "curl -fsSL https://bun.sh/install | bash",
-  "~/.bun/bin/bun install"
+  "ln -sf $HOME/.bun/bin/bun /usr/local/bin/bun",
+  "bun install"
 ]
 
+[phases.build]
+cmds = []
+
 [start]
-cmd = "~/.bun/bin/bun run index.ts"
+cmd = "bun run index.ts"
