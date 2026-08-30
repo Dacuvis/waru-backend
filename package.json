@@ -3,6 +3,10 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "engines": {
+    "node": ">=20.0.0",
+    "bun": ">=1.0.0"
+  },
   "scripts": {
     "start": "bun run index.ts",
     "dev": "bun run index.ts",
