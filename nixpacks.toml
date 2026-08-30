@@ -1,11 +1,21 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "bun"]
+nixPkgs = ["nodejs_20", "curl", "unzip"]
 
 [phases.install]
-cmds = ["bun install --frozen-lockfile"]
+cmds = [
+  "export BUN_INSTALL=\"$HOME/.bun\"",
+  "export PATH=\"$BUN_INSTALL/bin:$PATH\"",
+  "curl -fsSL https://bun.sh/install | bash -s -- bun-v1.3.13",
+  "bun --version",
+  "bun install --frozen-lockfile"
+]
 
 [phases.build]
-cmds = ["bun run typecheck"]
+cmds = [
+  "export BUN_INSTALL=\"$HOME/.bun\"",
+  "export PATH=\"$BUN_INSTALL/bin:$PATH\"",
+  "bun run typecheck"
+]
 
 [start]
-cmd = "bun run index.ts"
+cmd = "export BUN_INSTALL=\"$HOME/.bun\"; export PATH=\"$BUN_INSTALL/bin:$PATH\"; bun run index.ts"
