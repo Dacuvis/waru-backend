@@ -8,6 +8,7 @@ if (!mongoUrl) {
 
 const client = new MongoClient(mongoUrl, {
   serverSelectionTimeoutMS: 10000,
+  tlsAllowInvalidCertificates: true,
 });
 
 try {
