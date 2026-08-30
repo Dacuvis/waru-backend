@@ -5,6 +5,11 @@ export const menuCategoryEnum = t.Union([
   t.Literal("Light Food"),
 ]);
 
+const menuIngredientSchema = t.Object({
+  inventoryId: t.String({ minLength: 1, error: "inventoryId wajib diisi" }),
+  quantity: t.Number({ minimum: 0.001, error: "Kuantitas bahan harus lebih dari 0" }),
+});
+
 export const createMenuSchema = t.Object({
   name: t.String({ minLength: 1, error: "Name is required" }),
   description: t.String({ minLength: 1, error: "Description is required" }),
@@ -19,6 +24,7 @@ export const createMenuSchema = t.Object({
     minLength: 1,
     error: "Image URL is required",
   }),
+  ingredients: t.Optional(t.Array(menuIngredientSchema)),
 });
 
 export const updateMenuSchema = t.Partial(createMenuSchema);

@@ -2,6 +2,11 @@ import type { ObjectId } from "mongodb";
 
 export type typefood = "Heavy Food" | "Light Food";
 
+export interface MenuIngredient {
+  inventoryId: string;
+  quantity: number;
+}
+
 export interface MenuFilter {
   category?: typefood;
   isAvailable?: boolean;
@@ -16,6 +21,7 @@ export interface Menu {
   isAvailable: boolean;
   isRecommended: boolean;
   imageUrl: string;
+  ingredients?: MenuIngredient[];
   createdAt?: Date;
   updatedAt?: Date;
   createdBy?: ObjectId;

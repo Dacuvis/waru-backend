@@ -132,12 +132,27 @@ export class AnalyticsModel {
       .toArray();
 
     const lowStockCount = await this.inventory.countDocuments({
-      $expr: { $lte: ["$quantity", "$minimumStock"] },
+      $expr: {
+        $and: [
+          { $gt: ["$quantity", 0] },
+          { $lte: ["$quantity", "$minimumStock"] },
+        ],
+      },
+    });
+
+    const outOfStockCount = await this.inventory.countDocuments({
+      quantity: 0,
+    });
+
+    const safeStockCount = await this.inventory.countDocuments({
+      $expr: { $gt: ["$quantity", "$minimumStock"] },
     });
 
     return {
       totalItems: (result[0] as any)?.totalItems ?? 0,
       lowStockCount,
+      outOfStockCount,
+      safeStockCount,
       totalInventoryValue: (result[0] as any)?.totalInventoryValue ?? 0,
     };
   }

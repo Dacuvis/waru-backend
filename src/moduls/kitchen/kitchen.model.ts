@@ -18,6 +18,10 @@ export class KitchenModel {
     return await this.collection.findOne({ _id: new ObjectId(id) });
   }
 
+  async getByOrderId(orderId: string) {
+    return await this.collection.findOne({ orderId });
+  }
+
   async getByStatus(status: string, skip: number, limit: number) {
     const [data, total] = await Promise.all([
       this.collection
@@ -41,6 +45,24 @@ export class KitchenModel {
       { _id: new ObjectId(id) },
       { $set: item },
       { returnDocument: "after" },
+    );
+  }
+
+  async markDeductionLock(id: string): Promise<boolean> {
+    if (!ObjectId.isValid(id)) return false;
+    const res = await this.collection.findOneAndUpdate(
+      { _id: new ObjectId(id), inventoryDeducted: { $ne: true } },
+      { $set: { inventoryDeducted: true, inventoryDeductedAt: new Date() } },
+      { returnDocument: "after" }
+    );
+    return !!res;
+  }
+
+  async releaseDeductionLock(id: string) {
+    if (!ObjectId.isValid(id)) return null;
+    return await this.collection.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      { $unset: { inventoryDeducted: "", inventoryDeductedAt: "" } }
     );
   }
 

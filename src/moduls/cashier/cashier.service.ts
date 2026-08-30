@@ -10,6 +10,7 @@ import { OrderModel, PaymentModel } from "./cashier.model";
 import { MenuModel } from "../menu/menu.model";
 import { PromoService } from "../promo/promo.service";
 import { NotificationModel } from "../notification/notification.model";
+import { KitchenModel } from "../kitchen/kitchen.model";
 import type { AuthUser } from "../../utils/auth/auth.middleware";
 import type {
   CreateOrder,
@@ -129,6 +130,30 @@ export class OrderService {
       });
     } catch (err) {
       // Non-blocking log if it fails
+    }
+
+    // Otomatis masukkan ke antrean dapur (Kitchen Queue Pipeline)
+    try {
+      const kitchenModel = new KitchenModel();
+      const existingKitchen = await kitchenModel.getByOrderId(result.insertedId.toString());
+      if (!existingKitchen) {
+        await kitchenModel.create({
+          orderId: result.insertedId.toString(),
+          tableNumber: data.tableNumber,
+          menuItems: items.map((i: any) => ({
+            menuId: i.menuId?.toString() || i._id?.toString() || i.id?.toString(),
+            name: i.name,
+            quantity: i.quantity,
+            notes: data.notes,
+          })),
+          notes: data.notes,
+          status: "pending",
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    } catch (kErr) {
+      logger.warn({ err: kErr, orderId: result.insertedId }, "Gagal membuat kitchen queue item");
     }
 
     return result;

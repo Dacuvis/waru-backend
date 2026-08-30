@@ -35,6 +35,8 @@ export interface PaymentMethodSummary {
 export interface InventorySummary {
   totalItems: number;
   lowStockCount: number;
+  outOfStockCount: number;
+  safeStockCount: number;
   totalInventoryValue: number;
 }
 

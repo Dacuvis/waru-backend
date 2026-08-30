@@ -28,6 +28,10 @@ export class MenuModel {
     return await this.collection.findOne({ _id: id });
   }
 
+  async findByName(name: string) {
+    return await this.collection.findOne({ name });
+  }
+
   async update(id: ObjectId, item: UpdateMenu & { updatedAt: Date }) {
     return await this.collection.findOneAndUpdate(
       { _id: id },
