@@ -41,9 +41,40 @@ import { menuRoutes } from "./src/moduls/menu/menu.route";
 // ── Upload ───────────────────────────────────────────────────────────────────
 import { uploadRoute } from "./src/moduls/upload/upload.route";
 
+const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const frontendUrl = process.env.FRONTEND_URL || "https://waruu.vercel.app";
+
 const app = new Elysia()
-  .use(cors())
+  .use(
+    cors({
+      origin: (request) => {
+        const origin = request.headers.get("origin");
+        if (!origin) return true;
+        const allowedOrigins = [
+          "https://waruu.vercel.app",
+          frontendUrl,
+          "http://localhost:3000",
+          "http://localhost:3001",
+          "http://localhost:5173",
+        ];
+        if (
+          allowedOrigins.includes(origin) ||
+          /^http:\/\/localhost:\d+$/.test(origin) ||
+          /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)
+        ) {
+          return true;
+        }
+        return false;
+      },
+      credentials: true,
+      allowedHeaders: ["Content-Type", "Authorization"],
+      methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    })
+  )
   .use(swaggerConfig)
+
+  // ── Health Check ─────────────────────────────────────────────────────────
+  .get("/health", () => ({ status: "ok" }))
 
   // ── Request logger ───────────────────────────────────────────────────────
   .onRequest(({ request }) => {
@@ -101,7 +132,7 @@ const app = new Elysia()
   // Business Assistant
   .use(businessAssistantRoute) // GET|POST|DELETE /assistant
 
-  .listen(3000);
+  .listen(port);
 
-logger.info(`🦊 Waru backend berjalan di http://localhost:${app.server?.port}`);
-logger.info(`📚 Dokumentasi API: http://localhost:${app.server?.port}/docs`);
+logger.info(`🦊 Waru backend berjalan di port ${app.server?.port}`);
+logger.info(`📚 Dokumentasi API: http://localhost:${app.server?.port}/docs`);

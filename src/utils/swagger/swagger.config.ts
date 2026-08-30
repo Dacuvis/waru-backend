@@ -13,9 +13,13 @@ export const swaggerConfig = swagger({
     },
     servers: [
       {
-        url: "http://localhost:3000",
-        description: "Development server"
-      }
+        url: process.env.RAILWAY_PUBLIC_DOMAIN
+          ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+          : "http://localhost:3000",
+        description: process.env.RAILWAY_PUBLIC_DOMAIN
+          ? "Production server"
+          : "Development server",
+      },
     ],
     tags: [
       {
