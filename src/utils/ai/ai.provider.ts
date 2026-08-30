@@ -16,60 +16,218 @@ export class RuleBasedAdapter implements AIProvider {
 
     const insights: BusinessInsight[] = [];
 
-    const wantsSales = lower.includes("penjualan") || lower.includes("revenue") || lower.includes("omzet") || lower.includes("pendapatan");
-    const wantsInventory = lower.includes("stok") || lower.includes("inventory") || lower.includes("bahan");
-    const wantsReview = lower.includes("review") || lower.includes("rating") || lower.includes("ulasan");
-    const wantsMenu = lower.includes("menu") || lower.includes("makanan") || lower.includes("minuman") || lower.includes("terlaris");
-    const wantsGeneral = !wantsSales && !wantsInventory && !wantsReview && !wantsMenu;
+    // Helper to extract section from contextText
+    const extractSection = (header: string, endHeader?: string): string => {
+      const startIdx = contextText.indexOf(header);
+      if (startIdx === -1) return "";
+      const contentAfter = contextText.slice(startIdx + header.length);
+      if (!endHeader) return contentAfter.trim();
+      const endIdx = contentAfter.indexOf(endHeader);
+      return (endIdx !== -1 ? contentAfter.slice(0, endIdx) : contentAfter).trim();
+    };
 
-    // Parse values from contextText if present
-    if (wantsSales || wantsGeneral) {
-      insights.push({
-        category: "sales",
-        summary: "Analisis performa penjualan berdasarkan data terkini.",
-        recommendations: [
-          "Pantau terus rasio pembatalan order untuk memastikan kelancaran operasional dapur.",
-          "Pertimbangkan promo bundling atau minimum belanja untuk meningkatkan rata-rata nilai order.",
-        ],
-      });
-    }
+    const salesSection = extractSection("[RINGKASAN PENJUALAN INTERNAL]", "[MENU TERLARIS DI WARU");
+    const topMenuSection = extractSection("[MENU TERLARIS DI WARU (TOP 5)]", "[STATUS STOK & INVENTARIS]");
+    const inventorySection = extractSection("[STATUS STOK & INVENTARIS]", "[RATING & KEPUASAN PELANGGAN]");
+    const reviewSection = extractSection("[RATING & KEPUASAN PELANGGAN]", "====");
+    const activeMenuSection = extractSection("[DAFTAR MENU AKTIF WARU]", "[RINGKASAN PENJUALAN");
 
-    if (wantsInventory || wantsGeneral) {
-      insights.push({
-        category: "inventory",
-        summary: "Evaluasi status stok dan inventaris toko.",
-        recommendations: [
-          "Lakukan pengecekan berkala pada item dengan stok mendekati limit minimum.",
-          "Pastikan koordinasi tim dapur dan bagian pembelian bahan baku berjalan baik.",
-        ],
-      });
-    }
+    // 1. Intent Detection
+    const isMarketTrend =
+      lower.includes("gen z") ||
+      lower.includes("tren") ||
+      lower.includes("trend") ||
+      lower.includes("anak muda") ||
+      lower.includes("pasar") ||
+      lower.includes("populer") ||
+      lower.includes("lagi hits") ||
+      lower.includes("disukai") ||
+      lower.includes("kekinian");
 
-    if (wantsReview || wantsGeneral) {
-      insights.push({
-        category: "review",
-        summary: "Evaluasi kepuasan pelanggan dari reviu toko.",
-        recommendations: [
-          "Pertahankan kualitas pelayanan pada ulasan positif.",
-          "Evaluasi masukan pelanggan pada ulasan berating rendah untuk perbaikan menu dan layanan.",
-        ],
-      });
-    }
+    const isMenuRecommendation =
+      !isMarketTrend &&
+      (lower.includes("menu baru") ||
+        lower.includes("ide menu") ||
+        lower.includes("rekomendasi menu") ||
+        lower.includes("tambah menu") ||
+        lower.includes("ide produk") ||
+        lower.includes("menu apa yang cocok"));
 
-    if (wantsMenu || wantsGeneral) {
+    const isInventory =
+      lower.includes("stok") ||
+      lower.includes("inventory") ||
+      lower.includes("bahan") ||
+      lower.includes("habis") ||
+      lower.includes("gudang") ||
+      lower.includes("beli");
+
+    const isRecipe =
+      lower.includes("resep") ||
+      lower.includes("komposisi") ||
+      lower.includes("takaran") ||
+      lower.includes("bumbu") ||
+      lower.includes("bahan ayam geprek") ||
+      lower.includes("resep ayam");
+
+    const isStrategy =
+      lower.includes("strategi") ||
+      lower.includes("meningkatkan") ||
+      lower.includes("promosi") ||
+      lower.includes("pelanggan") ||
+      lower.includes("repeat order") ||
+      lower.includes("omzet naik") ||
+      lower.includes("cara agar") ||
+      lower.includes("tips");
+
+    const isSalesPerformance =
+      !isStrategy &&
+      (lower.includes("terlaris") ||
+        lower.includes("paling laku") ||
+        lower.includes("penjualan") ||
+        lower.includes("omzet") ||
+        lower.includes("revenue") ||
+        lower.includes("ranking") ||
+        lower.includes("laporan") ||
+        lower.includes("turun"));
+
+    let responseText = "";
+
+    // 2. Context-Aware Response Generation
+    if (isMarketTrend) {
+      responseText = `Berikut adalah analisa tren pasar dan preferensi konsumen (khususnya segmen muda/Gen Z) dalam industri kuliner F&B saat ini:
+
+### 1. Tren Kuliner Utama
+- **Makanan Pedas Berlevel & Varian Sambal Artisan:** Menu dengan sensasi pedas gurih atau keju lumer sangat digemari karena memberikan pengalaman rasa yang eksploratif.
+- **Snackable & Finger Foods:** Porsi praktis yang cocok untuk ngobrol atau sharing (misal: camilan gorengan krispi, kulit ayam renyah, tahu pedas).
+- **Minuman Visual & Refreshing:** Teh rasa buah (*fruit-infused tea*), *cheese tea*, atau es susu gula aren yang estetik untuk media sosial.
+- **Paket Hemat (Combo Meal):** Paket komplit (makanan utama + minuman + sambal ekstra) dengan harga bersahabat.
+
+### 2. Peluang Inovasi untuk WARU
+Dari menu eksisting yang ada di WARU, Anda tidak perlu merombak seluruh dapur. Opsi *quick win* yang sangat potensial:
+- Menghadirkan **Ayam Geprek Sambal Matah / Keju Mozzarella** dengan pilihan level kepedasan.
+- Menyediakan paket bundling hemat **Nasi Goreng + Minuman Segar**.`;
+
       insights.push({
         category: "general",
-        summary: "Analisis popularitas menu terlaris.",
+        summary: "Insight tren pasar dan preferensi kuliner Gen Z.",
         recommendations: [
-          "Pastikan ketersediaan bahan baku utama untuk top menu terlaris selalu tercukupi.",
+          "Luncurkan inovasi varian level pedas pada menu utama (Ayam Geprek).",
+          "Kembangkan minuman estetik berbiaya bahan rendah seperti Flavored Iced Tea.",
+        ],
+      });
+    } else if (isMenuRecommendation) {
+      responseText = `Berdasarkan lini produk kuliner WARU saat ini, berikut rekomendasi pengembangan menu baru yang strategis dan mudah dieksekusi:
+
+### Rekomendasi Menu Baru Potensial:
+1. **Ayam Geprek Sambal Korek / Matah Spesial:** Memperkaya varian menu utama tanpa menambah kompleksitas rantai pasok daging ayam.
+2. **Nasi Goreng Kampung / Gila:** Memanfaatkan bahan dapur yang sudah ada untuk memperluas variasi menu makanan berat.
+3. **Es Lemon Tea Selasih / Es Cincau Susu:** Minuman pendamping segar ber-margin keuntungan tinggi.
+4. **Side Dish Krispi (Tahu Crispy / Kulit Krispi):** Tambahan *add-on* efektif untuk meningkatkan rata-rata nilai order (*average order value*).`;
+
+      insights.push({
+        category: "general",
+        summary: "Rekomendasi penambahan varian menu ber-margin tinggi.",
+        recommendations: [
+          "Manfaatkan bahan baku utama yang sudah ada untuk diversifikasi rasa.",
+          "Gunakan produk side-dish sebagai pendorong upselling di kasir.",
+        ],
+      });
+    } else if (isRecipe) {
+      responseText = `Berikut adalah panduan standar resep dan kebutuhan bahan baku untuk menu di WARU:
+
+### Standar Bahan & Komposisi:
+- **Daging & Unggas:** Daging ayam potong segar, bumbu marinasi (bawang putih, ketumbar, garam, merica).
+- **Adonan & Tepung:** Tepung bumbu krispi berlapis renyah.
+- **Sambal Signature:** Cabai rawit merah, bawang putih, garam, siraman minyak panas.
+- **Nasi & Pelengkap:** Beras pulen, lalapan segar (timun/kubis).
+
+*Catatan Operasional:* Pastikan takaran bahan baku terstandarisasi agar rasa konsisten dan pemakaian bahan sesuai sistem inventaris.`;
+
+      insights.push({
+        category: "inventory",
+        summary: "Standarisasi resep dan konsumsi bahan baku.",
+        recommendations: [
+          "Pastikan tim dapur mencatat porsi bumbu sesuai SOP resep.",
+        ],
+      });
+    } else if (isInventory) {
+      responseText = `Berikut adalah ringkasan status stok dan ketersediaan bahan baku di inventaris WARU:
+
+### Status Inventaris Terkini:
+${inventorySection || "- Stok bahan utama dalam batas normal operasional."}
+
+### Rekomendasi Pengadaan & Dapur:
+1. Prioritaskan pembelian ulang (*reorder*) pada bahan baku yang mendekati batas minimum stok.
+2. Koordinasikan dengan kasir jika ada menu yang bahannya menipis agar status ketersediaan di POS tetap akurat.`;
+
+      insights.push({
+        category: "inventory",
+        summary: "Evaluasi ketersediaan stok inventaris dan bahan baku.",
+        recommendations: [
+          "Segera lakukan restock pada item yang berada di bawah limit minimum.",
+          "Cek fisik gudang secara berkala untuk mencocokkan stok aktual.",
+        ],
+      });
+    } else if (isStrategy) {
+      responseText = `Berikut strategi bisnis praktis yang dapat diterapkan untuk meningkatkan penjualan dan omzet WARU:
+
+### 1. Strategi Menu Bundling
+Kombinasikan menu makanan berat dengan minuman segar dalam satu paket harga khusus (misal: Paket Hemat Ayam Geprek + Es Teh Manis). Ini terbukti efektif menaikkan nilai rata-rata belanja per pelanggan (*Average Order Value*).
+
+### 2. Pemanfaatan Waktu Operasional (Happy Hour Promo)
+Berikan promo potongan harga khusus pada jam-jam sepi (misal: pukul 14.00 - 16.30 WIB) untuk meratakan distribusi traffic harian.
+
+### 3. Up-Selling di Meja Kasir
+Latih staf kasir untuk menawarkan menu pelengkap (kerupuk, gorengan krispi, atau es ekstra) saat pelanggan melakukan pembayaran.`;
+
+      insights.push({
+        category: "sales",
+        summary: "Strategi pertumbuhan penjualan dan efisiensi operasional.",
+        recommendations: [
+          "Buat program promo bundling minuman untuk mendongkrak omzet.",
+          "Tingkatkan kecepatan pelayanan di dapur saat jam sibuk.",
+        ],
+      });
+    } else if (isSalesPerformance) {
+      responseText = `Berikut adalah data performa penjualan dan menu terlaris WARU berdasarkan transaksi terkini:
+
+### Ringkasan Penjualan:
+${salesSection || "- Data penjualan sedang diakumulasikan."}
+
+### Peringkat Menu Terlaris (Top Ranking):
+${topMenuSection || "- Belum ada data ranking menu."}
+
+### Evaluasi Performa:
+- Menu terlaris menjadi kontributor utama perputaran omzet. Pastikan ketersediaan bahan bakunya selalu terjaga.`;
+
+      insights.push({
+        category: "sales",
+        summary: "Analisis performa omzet dan menu terlaris.",
+        recommendations: [
+          "Jaga konsistensi stok bahan untuk menu-menu peringkat atas.",
+          "Optimalkan promosi pada jam-jam sibuk untuk mendorong omzet lebih tinggi.",
+        ],
+      });
+    } else {
+      responseText = `Halo! Saya adalah WARU Business Assistant. Saya siap membantu Anda menganalisis performa bisnis, mengevaluasi penjualan, mengontrol stok inventaris, serta memberikan rekomendasi strategi kuliner untuk kedai WARU Anda.
+
+Silakan ajukan pertanyaan seputar:
+- Performa penjualan dan menu terlaris
+- Ketersediaan stok dan bahan baku
+- Ide produk baru dan tren pasar kuliner
+- Strategi peningkatan omzet dan promosi`;
+
+      insights.push({
+        category: "general",
+        summary: "Asisten bisnis siap membantu operasional WARU.",
+        recommendations: [
+          "Tanyakan metrik spesifik untuk mendapatkan analisis yang terarah.",
         ],
       });
     }
 
-    const text = `Saya menemukan ${insights.length} insight untuk bisnis Anda berdasarkan data analitik terkini.\n\n${contextText}`;
-
     return {
-      text,
+      text: responseText,
       insights,
       providerName: this.name,
     };

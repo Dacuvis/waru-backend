@@ -14,6 +14,7 @@ export interface KitchenItem {
 }
 
 export interface KitchenMenuItem {
+  menuId?: string;
   name: string;
   quantity: number;
   notes?: string;

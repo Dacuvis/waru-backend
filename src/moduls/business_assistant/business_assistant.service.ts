@@ -7,6 +7,8 @@ import {
 } from "../../utils/pagination/pagination";
 import { BusinessAssistantModel } from "./business_assistant.model";
 import { AnalyticsModel } from "../analytics/analytics.model";
+import { MenuModel } from "../menu/menu.model";
+import { InventoryModel } from "../inventory/inventory.model";
 import { AIService } from "../../utils/ai/ai.service";
 import { buildBusinessContext } from "../../utils/ai/context-builder";
 import type {
@@ -18,6 +20,8 @@ import type { AuthUser } from "../../utils/auth/auth.middleware";
 export class BusinessAssistantService {
   private model = new BusinessAssistantModel();
   private analyticsModel = new AnalyticsModel();
+  private menuModel = new MenuModel();
+  private inventoryModel = new InventoryModel();
   private aiService: AIService;
 
   constructor(customAiService?: AIService) {
@@ -47,7 +51,7 @@ export class BusinessAssistantService {
     const now = new Date();
 
     // 1. Build sanitized business analytics context
-    const { contextText } = await buildBusinessContext(this.analyticsModel);
+    const { contextText } = await buildBusinessContext(this.analyticsModel, this.menuModel, this.inventoryModel);
 
     // 2. Process message through provider-agnostic AI Service
     const assistantResponse = await this.aiService.processChat(contextText, [], data.message);
@@ -96,7 +100,7 @@ export class BusinessAssistantService {
     });
 
     // 2. Build sanitized business analytics context
-    const { contextText } = await buildBusinessContext(this.analyticsModel);
+    const { contextText } = await buildBusinessContext(this.analyticsModel, this.menuModel, this.inventoryModel);
 
     // 3. Extract history messages for context
     const historyMessages = (session.messages || []).map((m: any) => ({
