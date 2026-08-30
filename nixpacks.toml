@@ -16,4 +16,4 @@ cmds = [
 ]
 
 [start]
-cmd = "bun run index.ts"
+cmd = "bun run index.ts"
