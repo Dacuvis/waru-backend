@@ -1,10 +1,7 @@
-import nodemailer from "nodemailer";
 import { AppError } from "../error/error-global-handler";
 
-const EMAIL_HOST = Bun.env.EMAIL_HOST ?? "smtp.gmail.com";
-const EMAIL_PORT = parseInt(Bun.env.EMAIL_PORT ?? "587");
-const EMAIL_USER = Bun.env.EMAIL_USER ?? "";
-const EMAIL_PASS = Bun.env.EMAIL_PASS ?? "";
+const RESEND_API_KEY = Bun.env.RESEND_API_KEY ?? "";
+const RESEND_FROM = Bun.env.RESEND_FROM ?? "onboarding@resend.dev";
 
 export interface SendEmailOptions {
   to: string;
@@ -13,34 +10,38 @@ export interface SendEmailOptions {
 }
 
 export async function sendEmail({ to, subject, html }: SendEmailOptions): Promise<void> {
-  if (!EMAIL_USER || !EMAIL_PASS) {
+  if (!RESEND_API_KEY || !RESEND_FROM) {
     throw new AppError(
-      "Konfigurasi email belum diatur. Pastikan EMAIL_USER dan EMAIL_PASS ada di .env",
+      "Konfigurasi email belum diatur. Pastikan RESEND_API_KEY dan RESEND_FROM ada di .env",
       500,
     );
   }
 
-  const transporter = nodemailer.createTransport({
-    host: EMAIL_HOST,
-    port: EMAIL_PORT,
-    secure: false,
-    connectionTimeout: 5_000,
-    greetingTimeout: 5_000,
-    socketTimeout: 10_000,
-    auth: {
-      user: EMAIL_USER,
-      pass: EMAIL_PASS,
-    },
-  });
-
   try {
-    await transporter.sendMail({
-      from: `"Waru App" <${EMAIL_USER}>`,
-      to,
-      subject,
-      html,
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: RESEND_FROM,
+        to: [to],
+        subject,
+        html,
+      }),
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[Email] Resend API error:", errorText);
+      throw new AppError("Gagal mengirim email. Silakan coba lagi nanti.", 502);
+    }
   } catch (err) {
+    if (err instanceof AppError) {
+      throw err;
+    }
+
     console.error("[Email] Gagal mengirim email:", err);
     throw new AppError("Gagal mengirim email. Silakan coba lagi nanti.", 502);
   }
