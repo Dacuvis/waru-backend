@@ -1,6 +1,5 @@
 import { AppError } from "../../utils/error/error-global-handler";
 import { verifyPassword } from "../../utils/security/hash";
-import { sendEmail, loginEmailTemplate } from "../../utils/email/email";
 import { setCookieToken, type ElysiaContext } from "../../utils/cookies/cookies";
 import { LoginModel } from "./login.model";
 import { NotificationModel } from "../notification/notification.model";
@@ -40,13 +39,6 @@ export class LoginService {
     // Sign JWT via @elysia/jwt
     const token = await signFn({ id: userId, email, role });
 
-    // Kirim email notifikasi login beserta token
-    await sendEmail({
-      to: email,
-      subject: "Login berhasil ke Waru 👋",
-      html: loginEmailTemplate(name, token),
-    });
-
     setCookieToken(ctx, token);
 
     // Kirim notifikasi login ke database
@@ -67,7 +59,7 @@ export class LoginService {
     }
 
     return {
-      message: "Login berhasil! Token dikirim ke email kamu.",
+      message: "Login berhasil.",
       token,
       user: { id: userId, name, email },
     };

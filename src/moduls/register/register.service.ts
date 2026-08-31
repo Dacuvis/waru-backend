@@ -1,6 +1,5 @@
 import { AppError } from "../../utils/error/error-global-handler";
 import { hashPassword } from "../../utils/security/hash";
-import { sendEmail, welcomeEmailTemplate } from "../../utils/email/email";
 import { setCookieToken, type ElysiaContext } from "../../utils/cookies/cookies";
 import { RegisterModel } from "./register.model";
 import type { RegisterResponse } from "./register.type";
@@ -57,23 +56,10 @@ export class RegisterService {
     // Sign JWT via @elysia/jwt
     const token = await signFn({ id: userId, email, role: "customer" });
 
-    // Kirim email selamat datang beserta token
-    try {
-      await sendEmail({
-        to: email,
-        subject: "Selamat datang di Waru! 🎉",
-        html: welcomeEmailTemplate(name, token),
-      });
-    } catch (error) {
-      // Hindari akun setengah jadi yang membuat retry selalu gagal dengan 409.
-      await this.model.deleteById(result.insertedId);
-      throw error;
-    }
-
     setCookieToken(ctx, token);
 
     return {
-      message: "Registrasi berhasil! Token dikirim ke email kamu.",
+      message: "Registrasi berhasil. Akun tersimpan di database.",
       token,
       user: { id: userId, name, email },
     };
